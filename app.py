@@ -25,7 +25,6 @@ from datetime import datetime
 import streamlit as st
 import streamlit.components.v1 as components
 
-import flatpaths as fp
 import report as report_mod
 import custom_route
 import ui_graph
@@ -328,9 +327,9 @@ def timestamp_text(mtime: float) -> str:
 # ============================================================
 def find_bg() -> str | None:
     for name in BG_CANDIDATES:
-        hit = fp.resolve(ROOT, "assets", name)
-        if hit:
-            return hit
+        path = os.path.join(ASSETS, name)
+        if os.path.exists(path):
+            return path
     return None
 
 
@@ -566,22 +565,34 @@ def inject_css() -> None:
 # 3. 数据加载（按文件指纹缓存 + 自动失效）
 # ============================================================
 def iter_material_files() -> list[str]:
-    """支持 materials/ 目录，也支持平铺的 materials__*.md。"""
-    return [path for _, path in fp.list_folder(ROOT, "materials", (".md",))]
+    if not os.path.isdir(MATERIALS):
+        return []
+    return sorted(
+        os.path.join(MATERIALS, f)
+        for f in os.listdir(MATERIALS)
+        if f.lower().endswith(".md")
+    )
 
 
 def iter_asset_files() -> list[str]:
-    return [path for _, path in fp.list_folder(ROOT, "assets", IMG_EXTS)]
-
-
-def iter_content_files() -> list[str]:
-    return [path for _, path in fp.list_folder(ROOT, "content", (".json",))]
+    if not os.path.isdir(ASSETS):
+        return []
+    return sorted(
+        os.path.join(ASSETS, f)
+        for f in os.listdir(ASSETS)
+        if f.lower().endswith(IMG_EXTS)
+    )
 
 
 def data_signature() -> str:
     """kg.json + materials + assets + content 的指纹；任何改动都会触发重新加载。"""
     h = hashlib.sha1()
-    for path in [KG_PATH, *iter_material_files(), *iter_asset_files(), *iter_content_files()]:
+    extra = []
+    content_dir = os.path.join(ROOT, "content")
+    if os.path.isdir(content_dir):
+        extra = [os.path.join(content_dir, f) for f in sorted(os.listdir(content_dir))
+                 if f.endswith(".json")]
+    for path in [KG_PATH, *iter_material_files(), *iter_asset_files(), *extra]:
         try:
             info = os.stat(path)
         except OSError:
@@ -667,8 +678,8 @@ def load_bundle(signature: str) -> dict:
 def get_material(node_id: str, lang: str) -> tuple[str | None, str | None]:
     """materials/<id>.<lang>.md 优先，其次 materials/<id>.md。"""
     for name in (f"{node_id}.{lang}.md", f"{node_id}.md"):
-        path = fp.resolve(ROOT, "materials", name)
-        if path:
+        path = os.path.join(MATERIALS, name)
+        if os.path.exists(path):
             with open(path, encoding="utf-8") as f:
                 text = f.read().strip()
             if text:
@@ -680,10 +691,14 @@ def resolve_image(node: dict) -> str | None:
     """先看 kg.json 的 image 字段，再按 assets/<id>.<ext> 自动匹配。"""
     declared = str(node.get("image") or "").strip()
     if declared and not declared.lower().startswith("placeholder"):
-        path = fp.resolve(ROOT, "assets", declared)
-        if path:
+        path = os.path.join(ASSETS, declared)
+        if os.path.exists(path):
             return path
-    return fp.resolve_any(ROOT, "assets", node["id"], IMG_EXTS)
+    for ext in IMG_EXTS:
+        path = os.path.join(ASSETS, node["id"] + ext)
+        if os.path.exists(path):
+            return path
+    return None
 
 
 def find_entity(prompt: str, index: dict) -> str | None:
@@ -1007,11 +1022,7 @@ def sidebar(index: dict, lang: str) -> bool:
 # 4.5 内容数据（时间轴 / 研学路线 / 题库）
 # ============================================================
 def _load_json(rel: str, default):
-    """rel 形如 content/routes.json；找不到就去 content__routes.json。"""
-    folder, _, name = rel.partition("/")
-    path = fp.resolve(ROOT, folder, name) if name else os.path.join(ROOT, rel)
-    if not path:
-        return default
+    path = os.path.join(ROOT, rel)
     try:
         with open(path, encoding="utf-8") as f:
             return json.load(f)
