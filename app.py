@@ -25,6 +25,7 @@ from datetime import datetime
 import streamlit as st
 import streamlit.components.v1 as components
 
+import agent_llm
 import flatpaths as fp
 import report as report_mod
 import custom_route
@@ -1249,15 +1250,24 @@ def render_message(msg: dict, index: dict, lang: str, idx: int) -> None:
                 st.warning(TEXT[lang]["entity_removed"])
         elif msg.get("kind") == "path":
             render_path_card(msg, index, lang)
+        elif msg.get("kind") == "route":
+            render_route_card(msg, index, lang)
         else:
             st.markdown(msg.get("text", ""))
             for name in msg.get("suggestions", []):
                 if st.button(name, key=f"sug-{idx}-{name}"):
                     st.session_state["_pending"] = name
                     st.rerun()
+        if msg["role"] == "assistant":
+            render_agent_tag(msg.get("agent"), lang)
 
 
-def answer(prompt: str, index: dict, lang: str) -> dict:
+def answer_rule(prompt: str, index: dict, lang: str) -> dict:
+    """规则引擎：别名最长匹配找实体，命中两个就走 C 的 BFS 最短路。
+
+    没有配置大模型、或模型调用/校验失败时，由 answer() 回退到这里，
+    保证离线、断网、没填 Key 的机器上核心算法依然可用。
+    """
     t = TEXT[lang]
     entity_id = find_entity(prompt, index)
     if not entity_id:
@@ -1274,6 +1284,182 @@ def answer(prompt: str, index: dict, lang: str) -> dict:
         return make_path_message(entity_id, others[0], index)
 
     return {"role": "assistant", "kind": "entity", "entity_id": entity_id}
+
+
+# ============================================================
+# 4.1 智能体：大模型规划 + 确定性工具执行（失败自动回退）
+# ============================================================
+AGENT_TEXT = {
+    "zh": {
+        "llm_tag": "🧠 大模型规划 · {model} · {n} 次调用 · 参数校验通过 · 工具：{tool} · {ms:.0f} ms",
+        "rule_tag": "⚙️ 规则引擎（{why}）· 工具：{tool} · {ms:.0f} ms",
+        "why_nokey": "未配置 API Key，走离线规则",
+        "why_fail": "模型不可用或参数不合法，已回退",
+        "tool_path": "C-BFS 最短路",
+        "tool_entity": "邻接表一跳邻居",
+        "tool_route": "贪心最近邻路线",
+        "tool_rule": "别名最长匹配",
+        "log": "调用记录",
+        "log_hint": "每次问答的模型、参数校验、实际调用的工具与耗时，可直接导出作为验收证据。",
+        "log_empty": "还没有调用记录。",
+        "log_download": "下载调用记录 JSON",
+        "route_title": "定制路线",
+        "route_hours": "{h} 小时",
+        "route_hops": "距上一点 {n} 跳",
+        "route_match": "主题匹配",
+    },
+    "en": {
+        "llm_tag": "🧠 LLM planner · {model} · {n} call(s) · params validated · tool: {tool} · {ms:.0f} ms",
+        "rule_tag": "⚙️ Rule engine ({why}) · tool: {tool} · {ms:.0f} ms",
+        "why_nokey": "no API key, offline rules",
+        "why_fail": "model unavailable or params invalid, fell back",
+        "tool_path": "C BFS shortest path",
+        "tool_entity": "adjacency 1-hop neighbours",
+        "tool_route": "greedy nearest neighbour route",
+        "tool_rule": "longest-alias match",
+        "log": "Tool-call log",
+        "log_hint": "Model, param validation, tool used and latency per turn; exportable as evidence.",
+        "log_empty": "No calls recorded yet.",
+        "log_download": "Download call log (JSON)",
+        "route_title": "Custom route",
+        "route_hours": "{h} h",
+        "route_hops": "{n} hop(s) from previous stop",
+        "route_match": "theme match",
+    },
+}
+
+
+def _tool_route(params: dict, index: dict, lang: str) -> dict | None:
+    """工具三：按兴趣主题 + 时长生成路线（跳数来自 C 的 BFS，排序用贪心最近邻）。"""
+    pois = _all_pois(lang, index)
+    if not pois:
+        return None
+    result = custom_route.generate(index, pois, params["kind"], params["hours"], params["start"])
+    items = [{"entity": it["poi"]["entity"], "dist": it["dist"], "match": it["match"]}
+             for it in result["items"]]
+    if not items:
+        return None
+    return {"role": "assistant", "kind": "route", "hours": params["hours"],
+            "kind_type": params["kind"], "items": items}
+
+
+def _llm_dispatch(params: dict, index: dict, lang: str) -> tuple[dict | None, str]:
+    """把校验过的参数分派给工具。返回 (消息, 工具名)。"""
+    intent = params["intent"]
+    if intent == "path":
+        return make_path_message(params["a"], params["b"], index), "path"
+    if intent in ("entity", "neighbors"):
+        return {"role": "assistant", "kind": "entity", "entity_id": params["entity"]}, "entity"
+    if intent == "route":
+        return _tool_route(params, index, lang), "route"
+    return None, "unknown"
+
+
+def _log_call(prompt: str, meta: dict, tool: str) -> None:
+    entry = {
+        "time": datetime.now().strftime("%H:%M:%S"),
+        "prompt": prompt,
+        "engine": meta.get("engine", "rule"),
+        "model": meta.get("model", ""),
+        "intent": meta.get("intent", ""),
+        "params": meta.get("params", {}),
+        "tool": tool,
+        "validated": bool(meta.get("validated")),
+        "attempts": meta.get("attempts", 0),
+        "repaired": bool(meta.get("repaired")),
+        "elapsed_ms": round(float(meta.get("elapsed_ms", 0.0)), 2),
+        "error": meta.get("error", ""),
+    }
+    st.session_state.setdefault("agent_log", []).append(entry)
+
+
+def render_agent_tag(meta: dict, lang: str) -> None:
+    """在回答下面标一行「谁规划的、校验过没有、调了哪个工具、多久」。"""
+    if not meta:
+        return
+    txt = AGENT_TEXT[lang]
+    tool = txt.get("tool_" + str(meta.get("tool", "")), meta.get("tool", ""))
+    if meta.get("engine") == "llm" and meta.get("validated"):
+        line = txt["llm_tag"].format(model=meta.get("model", ""), n=meta.get("attempts", 1),
+                                     tool=tool, ms=float(meta.get("elapsed_ms", 0.0)))
+    else:
+        why = txt["why_nokey"] if "API Key" in str(meta.get("error", "")) else txt["why_fail"]
+        line = txt["rule_tag"].format(why=why, tool=tool,
+                                      ms=float(meta.get("elapsed_ms", 0.0)))
+    st.caption(line)
+
+
+def render_route_card(msg: dict, index: dict, lang: str) -> None:
+    txt = AGENT_TEXT[lang]
+    st.markdown(
+        f"**✨ {txt['route_title']} · {txt['route_hours'].format(h=msg['hours'])} · "
+        f"{len(msg['items'])} {('点位' if lang == 'zh' else 'stops')}**"
+    )
+    for n, it in enumerate(msg["items"], 1):
+        node = index["nodes"].get(it["entity"], {})
+        name = display_name(node, lang) if node else it["entity"]
+        badge = f"　`{txt['route_match']}`" if it.get("match") else ""
+        st.markdown(f"{n}. **{name}** — {txt['route_hops'].format(n=it['dist'])}{badge}")
+
+
+def answer(prompt: str, index: dict, lang: str) -> dict:
+    """智能体总入口：先让大模型理解需求并给出参数，校验通过才调工具。
+
+    三条铁律：
+      1. 模型只解析、不算数，结果以工具返回值为准；
+      2. 参数必须过白名单（实体要在图谱里、时长只能 2/3/4）；
+      3. 任何一步失败都回退规则引擎，聊天不会因为模型坏了而不可用。
+    """
+    meta: dict = {"engine": "rule", "model": "", "elapsed_ms": 0.0, "attempts": 0,
+                  "validated": False, "repaired": False, "error": "未配置 LLM_API_KEY"}
+
+    if agent_llm.available():
+        result = agent_llm.plan(prompt, index, lang)
+        meta = dict(result["meta"])
+        if result["ok"]:
+            msg, tool = _llm_dispatch(result["params"], index, lang)
+            if msg is not None:
+                meta.update({"tool": tool, "params": result["params"],
+                             "intent": result["params"]["intent"]})
+                msg["agent"] = meta
+                _log_call(prompt, meta, tool)
+                return msg
+            meta["error"] = "参数合法但没有可执行的工具"
+
+    fallback = {"engine": "rule", "model": meta.get("model", ""),
+                "elapsed_ms": meta.get("elapsed_ms", 0.0), "attempts": meta.get("attempts", 0),
+                "validated": False, "repaired": False, "error": meta.get("error", ""),
+                "tool": "rule"}
+    msg = answer_rule(prompt, index, lang)
+    msg["agent"] = fallback
+    _log_call(prompt, fallback, "rule")
+    return msg
+
+
+def render_agent_log(lang: str) -> None:
+    """调用记录面板：验收时直接展示「真实工具调用」的证据。"""
+    txt = AGENT_TEXT[lang]
+    entries = st.session_state.get("agent_log", [])
+    with st.expander(f"🧾 {txt['log']}（{len(entries)}）", expanded=False):
+        st.caption(txt["log_hint"])
+        if not entries:
+            st.caption(txt["log_empty"])
+            return
+        st.dataframe(
+            [{"时间": e["time"], "引擎": e["engine"], "模型": e["model"],
+              "意图": e["intent"] or "-", "工具": e["tool"],
+              "参数校验": "通过" if e["validated"] else "回退",
+              "耗时(ms)": e["elapsed_ms"], "输入": e["prompt"][:28]}
+             for e in entries[-20:]],
+            width="stretch", hide_index=True,
+        )
+        st.download_button(
+            txt["log_download"],
+            data=json.dumps(entries, ensure_ascii=False, indent=2),
+            file_name="agent_call_log.json",
+            mime="application/json",
+            key="agent-log-download",
+        )
 
 
 def sidebar(index: dict, lang: str) -> bool:
@@ -1485,6 +1671,9 @@ def render_chat_page(index: dict, lang: str, t: dict) -> None:
             st.session_state.messages.append(make_path_message(a_id, b_id, index))
             st.rerun()
         st.caption(t["path_caption"])
+
+    # ---- 智能体调用记录（模型 / 参数校验 / 工具 / 耗时）----
+    render_agent_log(lang)
 
     prompt = st.chat_input(t["placeholder"])
     if not prompt:
