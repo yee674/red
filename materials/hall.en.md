@@ -16,5 +16,3 @@
 | --- | --- | --- |
 | Hunan Provincial Department of Culture and Tourism | Hunan First Normal School: A 'Red Cradle' that Nurtured a Great Man | The assembly hall was an important venue for gatherings, speeches and academic activities |
 | Institute of Party History and Literature of the CPC Central Committee | The Site of Hunan Provincial First Normal School (Hunan) | The layout of the school's historic buildings, including the assembly hall |
-
-*Illustration — no verified photograph available*

@@ -25,6 +25,7 @@ from datetime import datetime
 import streamlit as st
 import streamlit.components.v1 as components
 
+import flatpaths as fp
 import report as report_mod
 import custom_route
 import ui_graph
@@ -327,9 +328,9 @@ def timestamp_text(mtime: float) -> str:
 # ============================================================
 def find_bg() -> str | None:
     for name in BG_CANDIDATES:
-        path = os.path.join(ASSETS, name)
-        if os.path.exists(path):
-            return path
+        hit = fp.resolve(ROOT, "assets", name)
+        if hit:
+            return hit
     return None
 
 
@@ -367,7 +368,29 @@ CSS = """
     background-attachment: fixed;
 }
 [data-testid="stHeader"] { background: transparent; }
-[data-testid="stToolbar"], #MainMenu, footer { display: none; }
+/* 只隐藏 Streamlit 自带的菜单 / 部署 / 状态图标，不要整个 stToolbar 都藏掉：
+   侧边栏收起后，Streamlit 会在顶栏（stToolbar 里）放一个「展开侧边栏」按钮，
+   以前的写法 display:none 会把它一起隐藏，于是侧边栏一收起来就再也点不回来。 */
+#MainMenu, footer, [data-testid="stMainMenu"], [data-testid="stAppDeployButton"],
+[data-testid="stStatusWidget"], [data-testid="stDecoration"] { display: none !important; }
+
+/* 展开侧边栏按钮：做成深色背景上也看得清的胶囊按钮 */
+[data-testid="stExpandSidebarButton"] {
+    margin: .5rem 0 0 .5rem !important;
+    padding: .2rem !important;
+    border: 1px solid rgba(232, 192, 125, .45) !important;
+    border-radius: 999px !important;
+    background: rgba(28, 12, 14, .78) !important;
+    box-shadow: 0 8px 22px rgba(0, 0, 0, .38);
+    backdrop-filter: blur(8px);
+    transition: all .18s ease;
+}
+[data-testid="stExpandSidebarButton"] svg { color: var(--gold) !important; fill: var(--gold) !important; }
+[data-testid="stExpandSidebarButton"]:hover {
+    border-color: var(--gold) !important;
+    background: rgba(232, 192, 125, .2) !important;
+    transform: translateY(-1px);
+}
 [data-testid="stMainBlockContainer"], .block-container {
     padding-top: 1.6rem;
     padding-bottom: 4.5rem;
@@ -422,6 +445,28 @@ code { background: rgba(232,192,125,.12); color: #ffe9bd; border-radius: 4px; }
     margin-left: .25rem;
     vertical-align: middle;
     opacity: .92;
+}
+/* 标题右边的小图标：点一下打开湖南第一师范学院官网 */
+.hero h1 .h1-link {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.5rem;
+    height: 1.5rem;
+    margin-left: .3rem;
+    border: 1px solid rgba(232, 192, 125, .45) !important;
+    border-bottom: 1px solid rgba(232, 192, 125, .45) !important;
+    border-radius: 999px;
+    background: rgba(232, 192, 125, .12);
+    vertical-align: middle;
+    text-decoration: none !important;
+    transition: all .18s ease;
+}
+.hero h1 .h1-link svg { width: .92rem; height: .92rem; display: block; }
+.hero h1 .h1-link:hover {
+    background: rgba(232, 192, 125, .26);
+    border-color: var(--gold) !important;
+    transform: translateY(-1px);
 }
 .hero p { margin: 0; color: var(--muted); font-size: .95rem; }
 .hero-tags { display: flex; flex-wrap: wrap; gap: .4rem; margin-top: .7rem; }
@@ -565,34 +610,22 @@ def inject_css() -> None:
 # 3. 数据加载（按文件指纹缓存 + 自动失效）
 # ============================================================
 def iter_material_files() -> list[str]:
-    if not os.path.isdir(MATERIALS):
-        return []
-    return sorted(
-        os.path.join(MATERIALS, f)
-        for f in os.listdir(MATERIALS)
-        if f.lower().endswith(".md")
-    )
+    """支持 materials/ 目录，也支持平铺的 materials__*.md。"""
+    return [path for _, path in fp.list_folder(ROOT, "materials", (".md",))]
 
 
 def iter_asset_files() -> list[str]:
-    if not os.path.isdir(ASSETS):
-        return []
-    return sorted(
-        os.path.join(ASSETS, f)
-        for f in os.listdir(ASSETS)
-        if f.lower().endswith(IMG_EXTS)
-    )
+    return [path for _, path in fp.list_folder(ROOT, "assets", IMG_EXTS)]
+
+
+def iter_content_files() -> list[str]:
+    return [path for _, path in fp.list_folder(ROOT, "content", (".json",))]
 
 
 def data_signature() -> str:
     """kg.json + materials + assets + content 的指纹；任何改动都会触发重新加载。"""
     h = hashlib.sha1()
-    extra = []
-    content_dir = os.path.join(ROOT, "content")
-    if os.path.isdir(content_dir):
-        extra = [os.path.join(content_dir, f) for f in sorted(os.listdir(content_dir))
-                 if f.endswith(".json")]
-    for path in [KG_PATH, *iter_material_files(), *iter_asset_files(), *extra]:
+    for path in [KG_PATH, *iter_material_files(), *iter_asset_files(), *iter_content_files()]:
         try:
             info = os.stat(path)
         except OSError:
@@ -678,8 +711,8 @@ def load_bundle(signature: str) -> dict:
 def get_material(node_id: str, lang: str) -> tuple[str | None, str | None]:
     """materials/<id>.<lang>.md 优先，其次 materials/<id>.md。"""
     for name in (f"{node_id}.{lang}.md", f"{node_id}.md"):
-        path = os.path.join(MATERIALS, name)
-        if os.path.exists(path):
+        path = fp.resolve(ROOT, "materials", name)
+        if path:
             with open(path, encoding="utf-8") as f:
                 text = f.read().strip()
             if text:
@@ -691,14 +724,10 @@ def resolve_image(node: dict) -> str | None:
     """先看 kg.json 的 image 字段，再按 assets/<id>.<ext> 自动匹配。"""
     declared = str(node.get("image") or "").strip()
     if declared and not declared.lower().startswith("placeholder"):
-        path = os.path.join(ASSETS, declared)
-        if os.path.exists(path):
+        path = fp.resolve(ROOT, "assets", declared)
+        if path:
             return path
-    for ext in IMG_EXTS:
-        path = os.path.join(ASSETS, node["id"] + ext)
-        if os.path.exists(path):
-            return path
-    return None
+    return fp.resolve_any(ROOT, "assets", node["id"], IMG_EXTS)
 
 
 def find_entity(prompt: str, index: dict) -> str | None:
@@ -1022,7 +1051,11 @@ def sidebar(index: dict, lang: str) -> bool:
 # 4.5 内容数据（时间轴 / 研学路线 / 题库）
 # ============================================================
 def _load_json(rel: str, default):
-    path = os.path.join(ROOT, rel)
+    """rel 形如 content/routes.json；找不到就去 content__routes.json。"""
+    folder, _, name = rel.partition("/")
+    path = fp.resolve(ROOT, folder, name) if name else os.path.join(ROOT, rel)
+    if not path:
+        return default
     try:
         with open(path, encoding="utf-8") as f:
             return json.load(f)
@@ -1444,7 +1477,23 @@ if auto_refresh:
     auto_watch(signature)
 
 # ---- 顶部主视觉 ----
-_en_suffix = '<span class="h1-en">RedTrace AI</span>' if lang == "zh" else ""
+# 标题右侧的小图标：点一下打开湖南第一师范学院官网
+HNFS_URL = "https://www.hnfnu.edu.cn/"
+HNFS_LINK = (
+    f'<a class="h1-link" href="{HNFS_URL}" target="_blank" rel="noopener noreferrer" '
+    f'aria-label="湖南第一师范学院官网" title="湖南第一师范学院官网 · hnfnu.edu.cn">'
+    '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">'
+    '<path d="M10.6 13.4a4 4 0 0 0 5.7 0l2.5-2.5a4 4 0 0 0-5.7-5.7l-1.5 1.5" '
+    'fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>'
+    '<path d="M13.4 10.6a4 4 0 0 0-5.7 0l-2.5 2.5a4 4 0 0 0 5.7 5.7l1.5-1.5" '
+    'fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>'
+    '</svg></a>'
+)
+if lang == "zh":
+    _title_html = (f'🚩 {t["app_title"]} '
+                   f'<span class="h1-en">RedTrace AI {HNFS_LINK}</span>')
+else:
+    _title_html = f'🚩 {t["app_title"]} {HNFS_LINK}'
 _tag_chips = "".join(
     f'<span class="hero-tag">{chip.strip()}</span>'
     for chip in t["tags"].split("·")
@@ -1452,7 +1501,7 @@ _tag_chips = "".join(
 st.markdown(
     f'<div class="hero">'
     f'<span class="badge">{t["badge"]}</span>'
-    f'<h1>🚩 {t["app_title"]} {_en_suffix}</h1>'
+    f'<h1>{_title_html}</h1>'
     f'<p>{t["subtitle"]}</p>'
     f'<div class="hero-tags">{_tag_chips}</div>'
     f'</div>',

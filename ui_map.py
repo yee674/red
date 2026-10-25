@@ -20,15 +20,11 @@ STATIC = os.path.join(ROOT, "static")
 
 @lru_cache(maxsize=2)
 def _leaflet_assets() -> tuple[str, str]:
-    css = ""
-    js = ""
-    try:
-        with open(os.path.join(STATIC, "leaflet.css"), encoding="utf-8") as f:
-            css = f.read()
-        with open(os.path.join(STATIC, "leaflet.js"), encoding="utf-8") as f:
-            js = f.read()
-    except OSError:
-        pass
+    """支持 static/ 目录，也支持平铺的 static__leaflet.js。"""
+    import flatpaths as fp
+
+    css = fp.read_text(ROOT, "static", "leaflet.css") or ""
+    js = fp.read_text(ROOT, "static", "leaflet.js") or ""
     return css, js
 
 
@@ -51,9 +47,11 @@ def _esc(text: str) -> str:
 
 
 def _image_for(poi: dict) -> str:
+    import flatpaths as fp
+
     fname = poi.get("image") or (poi.get("entity", "") + ".jpg")
-    path = os.path.join(ROOT, "assets", fname)
-    if not os.path.exists(path):
+    path = fp.resolve(ROOT, "assets", fname)
+    if not path:
         return ""
     return _thumb_b64(path, os.path.getmtime(path))
 

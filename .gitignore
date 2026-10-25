@@ -1,5 +1,7 @@
 __pycache__/
 *.pyc
 _runtime/
+nodes.txt
+edges.txt
 .streamlit/secrets.toml
 .DS_Store
