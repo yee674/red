@@ -310,3 +310,46 @@ def log(entry: dict) -> None:
 
 def clear_log() -> None:
     CALL_LOG.clear()
+
+
+# ============================================================
+# 连通性自检：把失败原因说清楚，而不是只显示“已回退”
+# ============================================================
+_HTTP_HINT = {
+    400: "请求格式被拒绝（BASE_URL 可能多了或少了 /v1）",
+    401: "API Key 无效、被删除或复制不完整",
+    402: "账户余额不足",
+    403: "没有该模型的访问权限",
+    404: "BASE_URL 或模型名不存在",
+    429: "请求过于频繁或超出配额",
+    500: "服务端错误",
+    502: "网关错误",
+    503: "服务暂时不可用（稍后重试）",
+}
+
+
+def ping() -> tuple[bool, str]:
+    """发一条最小请求测试 Key / BASE_URL / 模型名是否可用。
+
+    返回 (是否成功, 可读说明)；不会抛异常，直接给界面用。
+    """
+    cfg = config()
+    if not cfg["api_key"]:
+        return False, "未配置 LLM_API_KEY：请在 Streamlit 的 Settings → Secrets 里加 LLM_API_KEY"
+    try:
+        text = _post_chat(cfg, [{"role": "user", "content": "回复 OK 两个字符即可"}], json_mode=False)
+        return True, (f"连接正常：{cfg['base_url']} · 模型 {cfg['model']} · "
+                      f"返回 {len(text or '')} 字符")
+    except urllib.error.HTTPError as exc:
+        body = ""
+        try:
+            body = exc.read().decode("utf-8", "replace")[:220]
+        except Exception:
+            pass
+        hint = _HTTP_HINT.get(exc.code, "服务端返回错误")
+        return False, f"HTTP {exc.code} —— {hint}\n{body}"
+    except urllib.error.URLError as exc:
+        return False, (f"网络不可达：{exc.reason}\n"
+                       f"检查 LLM_BASE_URL 是否为 {cfg['base_url']}，以及平台是否允许外网访问")
+    except Exception as exc:
+        return False, f"{type(exc).__name__}：{exc}"
