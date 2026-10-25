@@ -267,6 +267,23 @@ TYPE_LABELS = {
 
 PAGES = ("chat", "graph", "study")
 
+# ============================================================
+# 1.5 主题：原来的深色（dark，默认）+ 新增的亮色（light）
+# ============================================================
+THEME_DARK, THEME_LIGHT = "dark", "light"
+THEMES = (THEME_DARK, THEME_LIGHT)          # 侧边栏里的先后顺序
+THEME_TITLE = {"zh": "主题", "en": "Theme"}
+THEME_LABELS = {
+    "zh": {THEME_DARK: "🌙 深色模式", THEME_LIGHT: "☀️ 亮色模式"},
+    "en": {THEME_DARK: "🌙 Dark mode", THEME_LIGHT: "☀️ Light mode"},
+}
+
+
+def current_theme() -> str:
+    """当前主题，存在 session_state 里；没设置过就沿用原来的深色。"""
+    return st.session_state.get("theme", THEME_DARK)
+
+
 REL_LABELS = {
     "FOUNDED": ("创办", "Founded"),
     "CLASSMATE_OF": ("同学", "Classmate of"),
@@ -599,11 +616,296 @@ img { border-radius: 14px; }
 """
 
 
+# ============================================================
+# 2.5 亮色主题（☀️）
+# 只是一层「覆盖样式」：上面 CSS 里的深色样式一行都没动，
+# 只有当前主题是 light 时才会把它追加在后面，深色模式因此完全保持原样。
+# ============================================================
+LIGHT_CSS = """
+<style>
+html, body { color-scheme: light; }
+:root {
+    --ink: #1f2430;
+    --muted: #5b6572;
+    --gold: #a4611a;
+    --accent: #c0392b;
+    --glass: #ffffff;
+    --line: rgba(31, 36, 48, 0.14);
+}
+
+/* ---------- 背景：白底 ---------- */
+[data-testid="stApp"], [data-testid="stAppViewContainer"] {
+    background-color: #f7f8fa !important;
+}
+[data-testid="stAppViewContainer"] { background-image: none !important; }
+[data-testid="stHeader"] { background: transparent !important; }
+[data-testid="stExpandSidebarButton"] {
+    background: #ffffff !important;
+    border-color: rgba(31, 36, 48, .18) !important;
+    box-shadow: 0 6px 18px rgba(31, 36, 48, .12) !important;
+}
+
+/* ---------- 侧边栏 ---------- */
+[data-testid="stSidebar"] {
+    background: #ffffff !important;
+    border-right: 1px solid #e4e8ee !important;
+    backdrop-filter: none !important;
+}
+[data-testid="stSidebar"] * { color: var(--ink); }
+
+/* ---------- 顶部主视觉 ---------- */
+.hero {
+    background: linear-gradient(140deg, #ffffff, #fdf7f3 62%) !important;
+    border: 1px solid #eadfd6 !important;
+    box-shadow: 0 12px 30px rgba(31, 36, 48, .07) !important;
+    backdrop-filter: none !important;
+}
+.hero::after {
+    background: radial-gradient(120% 80% at 88% 10%, rgba(216, 69, 47, .06), transparent 60%) !important;
+}
+.hero .badge {
+    color: #8a5a15 !important;
+    border-color: rgba(164, 97, 26, .3) !important;
+    background: #fdf6ea !important;
+}
+.hero h1, .hero h1 .h1-en, .hero p { color: var(--ink) !important; }
+.hero h1 .h1-en { color: #a4611a !important; opacity: 1 !important; }
+.hero p { color: var(--muted) !important; }
+.hero h1 .h1-link {
+    background: #fdf6ea !important;
+    border: 1px solid rgba(164, 97, 26, .35) !important;
+}
+.hero h1 .h1-link:hover { background: #f6ead6 !important; }
+.hero-tag {
+    color: #7a4a12 !important;
+    border-color: rgba(164, 97, 26, .28) !important;
+    background: #fdf6ea !important;
+}
+
+/* ---------- 统计条 / 聊天气泡 ---------- */
+.stats .chip {
+    background: #ffffff !important;
+    border-color: #e4e8ee !important;
+    color: var(--muted) !important;
+}
+.stats .chip b { color: #a4611a !important; }
+[data-testid="stChatMessage"] {
+    background: #ffffff !important;
+    border: 1px solid #e4e8ee !important;
+    box-shadow: 0 8px 20px rgba(31, 36, 48, .06) !important;
+    backdrop-filter: none !important;
+}
+
+/* ---------- 实体卡片 / 关系路径 ---------- */
+.ent-name { color: var(--ink) !important; }
+.ent-type {
+    color: #8a5a15 !important;
+    border-color: rgba(164, 97, 26, .28) !important;
+    background: #fdf6ea !important;
+}
+.section-title { color: #8a5a15 !important; opacity: 1 !important; }
+.path-badge { background: var(--accent) !important; color: #fff !important; }
+.pathline .pn {
+    background: #ffffff !important;
+    border-color: #dde2ea !important;
+    color: var(--ink) !important;
+}
+.pathline .pr { color: #a4611a !important; }
+
+/* ---------- 按钮 / 输入框 ---------- */
+.stButton > button {
+    background: #ffffff !important;
+    border: 1px solid #dde2ea !important;
+    color: var(--ink) !important;
+    box-shadow: 0 1px 2px rgba(31, 36, 48, .05);
+}
+.stButton > button:hover {
+    background: #fdf6ea !important;
+    border-color: #a4611a !important;
+    color: #7a4a12 !important;
+}
+[data-testid="stChatInput"] {
+    background: #ffffff !important;
+    border: 1px solid #dde2ea !important;
+    box-shadow: 0 10px 24px rgba(31, 36, 48, .08) !important;
+    backdrop-filter: none !important;
+}
+/* 输入框内层（textarea 容器）在深色主题里是 secondaryBackground，这里一并改白 */
+[data-testid="stChatInput"] * { background-color: transparent !important; }
+[data-testid="stChatInput"] > div { background-color: #ffffff !important; }
+[data-testid="stChatInput"] textarea { color: var(--ink) !important; }
+[data-testid="stChatInput"] textarea::placeholder { color: #98a1ad !important; }
+[data-testid="stChatInputSubmitButton"] { background: #eef1f5 !important; }
+[data-testid="stChatInputSubmitButton"] svg { color: #5b6572 !important; fill: #5b6572 !important; }
+[data-testid="stBottom"] {
+    background: linear-gradient(180deg, rgba(247, 248, 250, 0) 0%, #f7f8fa 55%) !important;
+}
+
+/* ---------- 折叠面板 / 提示 / 表格 / 代码 ---------- */
+[data-testid="stExpander"] details {
+    background: #ffffff !important;
+    border: 1px solid #e4e8ee !important;
+}
+[data-testid="stExpanderDetails"] { border-color: #eef1f5 !important; }
+[data-testid="stExpander"] summary { color: var(--ink) !important; }
+[data-testid="stExpander"] summary:hover,
+[data-testid="stExpander"] summary:focus,
+[data-testid="stExpander"] summary:focus-visible,
+[data-testid="stExpander"] summary:active,
+[data-testid="stExpander"] details[open] > summary {
+    background: #f7f8fa !important;
+    color: #7a4a12 !important;
+}
+[data-testid="stVerticalBlock"] { border-color: #e6e9ef !important; }
+[data-testid="stAlert"] {
+    background: #ffffff !important;
+    border: 1px solid #e4e8ee !important;
+}
+[data-testid="stAlert"] p { color: var(--ink) !important; }
+[data-testid="stMarkdownContainer"] table { background: #ffffff !important; }
+[data-testid="stMarkdownContainer"] th { background: #f2f4f8 !important; color: var(--ink) !important; }
+[data-testid="stMarkdownContainer"] td { color: var(--ink) !important; }
+[data-testid="stMarkdownContainer"] th,
+[data-testid="stMarkdownContainer"] td { border-color: #e4e8ee !important; }
+[data-testid="stMarkdownContainer"] pre,
+[data-testid="stCode"] pre,
+[data-testid="stCodeBlock"] pre {
+    background: #f4f5f7 !important;
+    color: #1f2430 !important;
+    border: 1px solid #e4e8ee !important;
+}
+[data-testid="stMarkdownContainer"] code { background: #f0ece4 !important; color: #8a4b00 !important; }
+
+/* ---------- 原生表单控件（底层仍是深色主题，这里改成浅色） ---------- */
+[data-testid="stWidgetLabel"] p { color: var(--ink) !important; }
+[data-testid="stRadioGroup"] p { color: var(--ink) !important; }
+[data-testid="stSelectbox"] [role="group"] {
+    background: #ffffff !important;
+    border: 1px solid #dde2ea !important;
+}
+[data-testid="stSelectbox"] input[role="combobox"] { color: var(--ink) !important; }
+[data-testid="stSelectbox"] input[role="combobox"]::placeholder { color: #98a1ad !important; }
+[data-testid="stSelectbox"] button { color: #5b6572 !important; }
+[data-testid="stSelectbox"] svg { color: #5b6572 !important; fill: #5b6572 !important; }
+
+/* 下拉候选列表渲染在 body 上的 portal 里，默认是深色 */
+[data-testid="stSelectboxVirtualDropdown"] {
+    background: #ffffff !important;
+    border: 1px solid #e4e8ee !important;
+    box-shadow: 0 10px 26px rgba(31, 36, 48, .12) !important;
+}
+[data-testid="stSelectboxVirtualDropdown"] [role="option"] { color: var(--ink) !important; }
+[data-testid="stSelectboxVirtualDropdown"] [role="option"]:hover,
+[data-testid="stSelectboxVirtualDropdown"] [role="option"][data-focused="true"],
+[data-testid="stSelectboxVirtualDropdown"] [role="option"][aria-selected="true"] {
+    background: #fdf6ea !important;
+    color: #7a4a12 !important;
+}
+[data-testid="portal"] [role="listbox"],
+[data-testid="portal"] [data-baseweb="popover"],
+[data-testid="portal"] ul { background: #ffffff !important; }
+[data-testid="portal"] [role="option"] { color: var(--ink) !important; }
+[data-testid="portal"] [role="option"]:hover,
+[data-testid="portal"] [role="option"][aria-selected="true"] {
+    background: #fdf6ea !important;
+    color: #7a4a12 !important;
+}
+
+/* 单选圆圈：深色主题里是浅色描边，白底上会看不见 */
+[data-testid="stRadioOption"]:not([data-selected="true"]) > div > div:first-child {
+    background: #ffffff !important;
+    border-color: #c3cad6 !important;
+}
+/* 选中项那层底色（深色主题里几乎看不见，白底上会偏红），调淡一些 */
+[data-testid="stRadioGroup"] > div[data-selected="true"] {
+    background: rgba(216, 69, 47, .07) !important;
+    border-radius: 8px;
+}
+/* 开关（自动刷新）：关闭时是深灰轨道，白底上改成浅灰 */
+[data-testid="stCheckbox"]:has(input[role="switch"]):not([data-selected="true"]) label > div:nth-of-type(1) {
+    background-color: #d5dbe5 !important;
+    border-color: #d5dbe5 !important;
+}
+/* 复选框（研学任务卡）：未勾选时是浅色描边，白底上看不见 */
+[data-testid="stCheckbox"]:not(:has(input[role="switch"])):not([data-selected="true"]) label > div:nth-of-type(1) {
+    background-color: #ffffff !important;
+    border-color: #c3cad6 !important;
+}
+/* 下载按钮（导出的研学小结）跟普通按钮保持一致 */
+[data-testid="stDownloadButton"] button,
+.stDownloadButton button {
+    background: #ffffff !important;
+    border: 1px solid #dde2ea !important;
+    color: var(--ink) !important;
+}
+[data-testid="stDownloadButton"] button:hover,
+.stDownloadButton button:hover {
+    background: #fdf6ea !important;
+    border-color: #a4611a !important;
+    color: #7a4a12 !important;
+}
+
+/* ---------- 其它 ---------- */
+hr { border-color: #e4e8ee !important; }
+[data-testid="stToast"] {
+    background: #ffffff !important;
+    color: var(--ink) !important;
+    border: 1px solid #e4e8ee !important;
+}
+</style>
+"""
+
+# 知识图谱 / 地图 / 时间轴是内联 HTML，颜色写死在组件里，
+# 亮色主题下用这张表把深色换掉；深色主题直接返回原文，一个字都不动。
+LIGHT_COLOR_SWAP = {
+    "rgba(232,192,125,.65)": "rgba(164,97,26,.6)",
+    "rgba(232,192,125,.55)": "rgba(164,97,26,.45)",
+    "rgba(232,192,125,.45)": "rgba(164,97,26,.35)",
+    "rgba(232,192,125,.4)": "rgba(164,97,26,.34)",
+    "rgba(232,192,125,.35)": "rgba(164,97,26,.3)",
+    "rgba(232,192,125,.25)": "rgba(164,97,26,.22)",
+    "rgba(232,192,125,.2)": "rgba(164,97,26,.18)",
+    "rgba(232,192,125,.18)": "rgba(164,97,26,.16)",
+    "rgba(232,192,125,.16)": "rgba(164,97,26,.14)",
+    "rgba(232,192,125,.12)": "rgba(164,97,26,.12)",
+    "rgba(20,8,10,.94)": "#ffffff",
+    "rgba(20,8,10,.85)": "#d5dbe4",
+    "rgba(20,8,10,.9)": "#ffffff",
+    "rgba(20,8,10,.8)": "#ffffff",
+    "rgba(18,8,10,.35)": "rgba(255,255,255,.92)",
+    "rgba(255,255,255,.045)": "#ffffff",
+    "rgba(215,189,182,.4)": "rgba(31,36,48,.42)",
+    "rgba(160,140,130,.35)": "rgba(31,36,48,.3)",
+    "rgba(0,0,0,.5)": "rgba(31,36,48,.18)",
+    "#e8c07d": "#a4611a",
+    "#f5ebe6": "#1f2430",
+    "#f7efe8": "#1f2430",
+    "#d7bdb6": "#5b6572",
+    "#cdb7af": "#5b6572",
+    "#a08b83": "#5b6572",
+    "#fff3d8": "#b06a12",
+    "#14080a": "#ffffff",
+    "#1d0f10": "#ffffff",
+}
+
+
+def themed_html(html: str) -> str:
+    """亮色主题下把图表/地图里内联的深色配色换成浅色；深色主题原样返回。"""
+    if current_theme() != THEME_LIGHT:
+        return html
+    for old in sorted(LIGHT_COLOR_SWAP, key=len, reverse=True):
+        html = html.replace(old, LIGHT_COLOR_SWAP[old])
+    return html
+
+
 def inject_css() -> None:
     uri = bg_data_uri()
     bg = f'url("{uri}")' if uri else \
         "linear-gradient(160deg, #3a0f10 0%, #1a0708 55%, #120506 100%)"
-    st.markdown(CSS.replace("__BG__", bg), unsafe_allow_html=True)
+    css = CSS.replace("__BG__", bg)
+    if current_theme() == THEME_LIGHT:
+        css += LIGHT_CSS          # 亮色：追加覆盖样式，深色样式保持原样
+    st.markdown(css, unsafe_allow_html=True)
 
 
 # ============================================================
@@ -991,6 +1293,17 @@ def sidebar(index: dict, lang: str) -> bool:
             st.session_state.lang = picked
             st.rerun()
 
+        # ---- 主题切换（🌙 原有深色 / ☀️ 亮色）----
+        picked_theme = st.radio(
+            THEME_TITLE[lang], THEMES,
+            index=THEMES.index(current_theme()),
+            format_func=lambda code: THEME_LABELS[lang][code],
+            horizontal=True, key="theme_choice",
+        )
+        if picked_theme != current_theme():
+            st.session_state.theme = picked_theme
+            st.rerun()
+
         st.divider()
         st.markdown(f"#### 🧭 {t['nav']}")
         page_labels = {"chat": f"💬 {t['page_chat']}",
@@ -1205,7 +1518,7 @@ def render_graph_page(index: dict, lang: str, t: dict) -> None:
     ]
     legend = {k: (v[0] if lang == "zh" else v[1]) for k, v in TYPE_LABELS.items()}
     components.html(
-        ui_graph.graph_component(nodes_payload, edges_payload, legend, height=640),
+        themed_html(ui_graph.graph_component(nodes_payload, edges_payload, legend, height=640)),
         height=650, scrolling=False,
     )
 
@@ -1225,7 +1538,7 @@ def render_graph_page(index: dict, lang: str, t: dict) -> None:
     st.markdown(f"#### 🕰️ {t['timeline_title']}")
     items = load_timeline(lang)
     if items:
-        st.markdown(ui_graph.timeline_html(items), unsafe_allow_html=True)
+        st.markdown(themed_html(ui_graph.timeline_html(items)), unsafe_allow_html=True)
 
 
 def _all_pois(lang: str, index: dict) -> list[dict]:
@@ -1272,8 +1585,9 @@ def _render_custom_route(index: dict, lang: str, t: dict) -> None:
     st.markdown(f"**{t['custom_route']}** · {result['hours']} {t['hours_unit']} · "
                 f"{len(items)} {t['pois_count']}")
     components.html(
-        ui_map.map_component([it["poi"] for it in items], lang, height=420,
-                             route_title=t["custom_route"], offline_note=t["map_note"]),
+        themed_html(ui_map.map_component([it["poi"] for it in items], lang, height=420,
+                                         route_title=t["custom_route"],
+                                         offline_note=t["map_note"])),
         height=480, scrolling=False,
     )
 
@@ -1334,8 +1648,9 @@ def render_study_page(index: dict, lang: str, t: dict) -> None:
     st.caption(f"{t['duration']}：{route['duration']}")
 
     components.html(
-        ui_map.map_component(route["pois"], lang, height=480,
-                             route_title=route["title"], offline_note=t["map_note"]),
+        themed_html(ui_map.map_component(route["pois"], lang, height=480,
+                                         route_title=route["title"],
+                                         offline_note=t["map_note"])),
         height=540, scrolling=False,
     )
 
@@ -1444,6 +1759,10 @@ def render_study_page(index: dict, lang: str, t: dict) -> None:
 # ============================================================
 # 5. 主流程
 # ============================================================
+# 主题要先于样式注入确定下来，否则注入的还是上一次的主题
+if "theme" not in st.session_state:
+    st.session_state.theme = THEME_DARK
+
 inject_css()
 
 if "lang" not in st.session_state:
