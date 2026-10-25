@@ -1295,6 +1295,11 @@ AGENT_TEXT = {
         "rule_tag": "⚙️ 规则引擎（{why}）· 工具：{tool} · {ms:.0f} ms",
         "why_nokey": "未配置 API Key，走离线规则",
         "why_fail": "模型不可用或参数不合法，已回退",
+        "why_http": "模型调用失败 {err}，已回退",
+        "ping_btn": "🔌 测试模型连接",
+        "ping_ok": "✅ 连接成功",
+        "ping_fail": "❌ 连接失败",
+        "ping_hint": "当前配置：{base} · 模型 {model} · Key {key}。点左边按钮可当场测试连通性。",
         "tool_path": "C-BFS 最短路",
         "tool_entity": "邻接表一跳邻居",
         "tool_route": "贪心最近邻路线",
@@ -1313,6 +1318,11 @@ AGENT_TEXT = {
         "rule_tag": "⚙️ Rule engine ({why}) · tool: {tool} · {ms:.0f} ms",
         "why_nokey": "no API key, offline rules",
         "why_fail": "model unavailable or params invalid, fell back",
+        "why_http": "model call failed {err}, fell back",
+        "ping_btn": "🔌 Test model connection",
+        "ping_ok": "✅ Connected",
+        "ping_fail": "❌ Connection failed",
+        "ping_hint": "Config: {base} · model {model} · key {key}. Click the button to test the connection.",
         "tool_path": "C BFS shortest path",
         "tool_entity": "adjacency 1-hop neighbours",
         "tool_route": "greedy nearest neighbour route",
@@ -1383,7 +1393,13 @@ def render_agent_tag(meta: dict, lang: str) -> None:
         line = txt["llm_tag"].format(model=meta.get("model", ""), n=meta.get("attempts", 1),
                                      tool=tool, ms=float(meta.get("elapsed_ms", 0.0)))
     else:
-        why = txt["why_nokey"] if "API Key" in str(meta.get("error", "")) else txt["why_fail"]
+        err = str(meta.get("error", ""))
+        if err.startswith("HTTP"):
+            why = txt["why_http"].format(err=err)
+        elif "API Key" in err:
+            why = txt["why_nokey"]
+        else:
+            why = txt["why_fail"]
         line = txt["rule_tag"].format(why=why, tool=tool,
                                       ms=float(meta.get("elapsed_ms", 0.0)))
     st.caption(line)
@@ -1442,6 +1458,22 @@ def render_agent_log(lang: str) -> None:
     entries = st.session_state.get("agent_log", [])
     with st.expander(f"🧾 {txt['log']}（{len(entries)}）", expanded=False):
         st.caption(txt["log_hint"])
+
+        # 模型连通性自检：失败时把 HTTP 状态码与平台提示直接显示出来
+        c1, c2 = st.columns([1, 3])
+        if c1.button(txt["ping_btn"], key="agent-ping", width="stretch"):
+            ok, detail = agent_llm.ping()
+            st.session_state["agent_ping"] = (ok, detail)
+        stored = st.session_state.get("agent_ping")
+        if stored:
+            ok, detail = stored
+            (c2.success if ok else c2.error)(f"{txt['ping_ok'] if ok else txt['ping_fail']}\n\n{detail}")
+        else:
+            cfg = agent_llm.config()
+            c2.caption(txt["ping_hint"].format(
+                base=cfg["base_url"], model=cfg["model"],
+                key=("已配置" if cfg["api_key"] else "未配置")))
+
         if not entries:
             st.caption(txt["log_empty"])
             return
@@ -1449,7 +1481,9 @@ def render_agent_log(lang: str) -> None:
             [{"时间": e["time"], "引擎": e["engine"], "模型": e["model"],
               "意图": e["intent"] or "-", "工具": e["tool"],
               "参数校验": "通过" if e["validated"] else "回退",
-              "耗时(ms)": e["elapsed_ms"], "输入": e["prompt"][:28]}
+              "重试": e.get("attempts", 0), "耗时(ms)": e["elapsed_ms"],
+              "错误": str(e.get("error", ""))[:40] or "-",
+              "输入": e["prompt"][:24]}
              for e in entries[-20:]],
             width="stretch", hide_index=True,
         )
