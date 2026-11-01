@@ -18,3 +18,12 @@
 | People's Daily Online · CPC News | Mao Zedong's Schooling: Teacher and Student in Eventful Years | Mao's deep bonds with Yang Changji and other teachers |
 
 *Illustration — no verified photograph available*
+
+**Field notes (31 Oct 2026)**
+
+- The courtyard sculpture group "Nurtured by great teachers, sharpened by good friends" is the most direct spatial expression of respect for teachers.
+- Figures include an elderly teacher with a stick, a young man with a book and students sitting in discussion — echoing Yang Changji, Xu Teli and others.
+- The inscribed boulder states the theme and makes a natural stopping point for a lesson on respecting teachers.
+
+
+*Image: field photo taken on the Chengnan campus (team, 31 Oct 2026)*

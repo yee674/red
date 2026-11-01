@@ -41,7 +41,7 @@ DEFAULT_BASE = "https://api.deepseek.com/v1"
 DEFAULT_MODEL = "deepseek-chat"
 DEFAULT_TIMEOUT = 30
 
-VALID_INTENTS = ("path", "entity", "neighbors", "route", "unknown")
+VALID_INTENTS = ("path", "entity", "neighbors", "route", "photo", "fact", "unknown")
 VALID_KINDS = ("PERSON", "PLACE", "EVENT", "CONCEPT")
 VALID_HOURS = (2, 3, 4)
 
@@ -92,6 +92,17 @@ def _entity_table(index: dict) -> str:
     return "\n".join(lines)
 
 
+def _fact_table(index: dict) -> str:
+    """列出每个实体登记过哪些字段（fact 意图只能取这里面的字段名）。"""
+    lines = []
+    for nid, node in index["nodes"].items():
+        facts = node.get("facts") or []
+        keys = [str(f.get("key", "")) for f in facts if f.get("key")]
+        if keys:
+            lines.append(f"- {nid}（{node.get('name', '')}）：{'、'.join(keys)}")
+    return "\n".join(lines) or "（暂无登记字段）"
+
+
 def _messages(prompt: str, index: dict, lang: str) -> list[dict]:
     system = f"""你是「红脉智谱」红色文化知识图谱的智能体规划器。你唯一的任务是：
 把用户的自然语言需求转成 JSON 参数，交给确定性算法工具执行。
@@ -100,15 +111,22 @@ def _messages(prompt: str, index: dict, lang: str) -> list[dict]:
 1. path     —— 两点关系查询：用 C 语言邻接表 + BFS 求两实体间最短关系链
 2. entity   —— 实体名片：查某实体的身份、一跳关系、两跳可达
 3. route    —— 定制研学路线：按兴趣主题 + 时长，用贪心最近邻排一条路线
+4. photo    —— 只看图：用户想看某实体的照片，只回一张图，不要名片
+5. fact     —— 查单个字段：用户只问一个具体信息（入学年份、毕业年份、班级…），
+              只回那个值，不要名片。字段必须来自下面的「已登记字段」
 
 实体清单（只能使用这里的 id）：
 {_entity_table(index)}
 
+各实体已登记的字段（fact 只能用这里的字段名）：
+{_fact_table(index)}
+
 输出格式（只输出 JSON，不要解释、不要代码块）：
-{{"intent": "path|entity|neighbors|route|unknown",
+{{"intent": "path|entity|neighbors|route|photo|fact|unknown",
   "a": "起始实体id",
   "b": "目标实体id",
   "entity": "要查询的实体id",
+  "field": "fact 的字段名",
   "kind": "PERSON|PLACE|EVENT|CONCEPT",
   "hours": 2,
   "reason": "一句话说明你的判断"}}
@@ -118,6 +136,9 @@ def _messages(prompt: str, index: dict, lang: str) -> list[dict]:
 - 问一个实体是谁、有什么关系、周边 → intent=entity 或 neighbors，填 entity
 - 要安排参观路线、几小时怎么逛、按兴趣推荐点位 → intent=route，
   填 kind（兴趣主题）、hours（2/3/4）和 start（起点实体 id）
+- 只想看照片、图片、拍的样子 → intent=photo，填 entity
+- 只问某一个具体字段（哪年入学、什么时候毕业、哪个班） → intent=fact，
+  填 entity 与 field（字段名用中文原名）
 - 提到的名字如果不在实体清单里 → intent=unknown，不要编造 id
 - 用户语言：{"中文" if lang == "zh" else "英文"}，但 JSON 的字段值必须是上面的英文枚举和 id"""
     return [
@@ -172,6 +193,24 @@ def _extract_json(text: str) -> dict | None:
 # ============================================================
 # 参数校验（模型说了不算，这里说了才算）
 # ============================================================
+def _match_field(field: str, node: dict) -> str | None:
+    """把模型给的字段名（可能是别名、英文或长句）映射回 kg.json 里的 key。"""
+    want = (field or "").strip().lower()
+    if not want:
+        return None
+    facts = node.get("facts") or []
+    for fact in facts:
+        names = [fact.get("key", ""), fact.get("key_en", "")]
+        names += list(fact.get("aliases") or [])
+        names += list(fact.get("aliases_en") or [])
+        if any(str(n).strip().lower() == want for n in names if str(n).strip()):
+            return fact.get("key")
+    for fact in facts:                       # 退一步：包含匹配
+        if want in str(fact.get("key", "")).lower():
+            return fact.get("key")
+    return None
+
+
 def validate(raw: dict | None, index: dict) -> tuple[dict | None, list[str]]:
     """把模型输出收敛成可执行参数；返回 (params, errors)。"""
     if not isinstance(raw, dict):
@@ -207,14 +246,22 @@ def validate(raw: dict | None, index: dict) -> tuple[dict | None, list[str]]:
                 errors.append("a 与 b 不能相同")
             params["a"], params["b"] = a, b
 
-    elif intent in ("entity", "neighbors"):
+    elif intent in ("entity", "neighbors", "photo", "fact"):
         entity = pick_id("entity", "a", "id")
         if not entity:
-            errors.append("entity 需要给出实体 id")
+            errors.append(f"{intent} 需要给出实体 id")
         elif entity not in nodes:
             errors.append(f"实体 id 不在图谱中：{entity}")
         else:
             params["entity"] = entity
+            if intent == "fact":
+                field = str(raw.get("field", "")).strip()
+                matched = _match_field(field, nodes[entity])
+                if matched:
+                    params["field"] = matched
+                else:
+                    have = "、".join(str(f.get("key", "")) for f in (nodes[entity].get("facts") or []))
+                    errors.append(f"实体 {entity} 没有登记字段 {field!r}；可用字段：{have or '无'}")
 
     elif intent == "route":
         kind = str(raw.get("kind", "")).strip().upper()
@@ -310,46 +357,3 @@ def log(entry: dict) -> None:
 
 def clear_log() -> None:
     CALL_LOG.clear()
-
-
-# ============================================================
-# 连通性自检：把失败原因说清楚，而不是只显示“已回退”
-# ============================================================
-_HTTP_HINT = {
-    400: "请求格式被拒绝（BASE_URL 可能多了或少了 /v1）",
-    401: "API Key 无效、被删除或复制不完整",
-    402: "账户余额不足",
-    403: "没有该模型的访问权限",
-    404: "BASE_URL 或模型名不存在",
-    429: "请求过于频繁或超出配额",
-    500: "服务端错误",
-    502: "网关错误",
-    503: "服务暂时不可用（稍后重试）",
-}
-
-
-def ping() -> tuple[bool, str]:
-    """发一条最小请求测试 Key / BASE_URL / 模型名是否可用。
-
-    返回 (是否成功, 可读说明)；不会抛异常，直接给界面用。
-    """
-    cfg = config()
-    if not cfg["api_key"]:
-        return False, "未配置 LLM_API_KEY：请在 Streamlit 的 Settings → Secrets 里加 LLM_API_KEY"
-    try:
-        text = _post_chat(cfg, [{"role": "user", "content": "回复 OK 两个字符即可"}], json_mode=False)
-        return True, (f"连接正常：{cfg['base_url']} · 模型 {cfg['model']} · "
-                      f"返回 {len(text or '')} 字符")
-    except urllib.error.HTTPError as exc:
-        body = ""
-        try:
-            body = exc.read().decode("utf-8", "replace")[:220]
-        except Exception:
-            pass
-        hint = _HTTP_HINT.get(exc.code, "服务端返回错误")
-        return False, f"HTTP {exc.code} —— {hint}\n{body}"
-    except urllib.error.URLError as exc:
-        return False, (f"网络不可达：{exc.reason}\n"
-                       f"检查 LLM_BASE_URL 是否为 {cfg['base_url']}，以及平台是否允许外网访问")
-    except Exception as exc:
-        return False, f"{type(exc).__name__}：{exc}"

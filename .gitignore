@@ -5,3 +5,5 @@ nodes.txt
 edges.txt
 .streamlit/secrets.toml
 .DS_Store
+*.dll
+*.so

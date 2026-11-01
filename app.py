@@ -27,13 +27,16 @@ import streamlit.components.v1 as components
 
 import agent_llm
 import flatpaths as fp
+import qa_intent
 import report as report_mod
 import custom_route
 import ui_graph
 import ui_map
+import ui_campus_map
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 ASSETS = os.path.join(ROOT, "assets")
+MAPS = os.path.join(ASSETS, "maps")
 MATERIALS = os.path.join(ROOT, "materials")
 KG_PATH = os.path.join(ROOT, "kg.json")
 
@@ -66,15 +69,15 @@ TEXT = {
         "nav": "页面",
         "page_chat": "问答",
         "page_graph": "知识图谱",
-        "page_study": "研学",
-        "graph_hint": "拖动节点可以调整布局，点击节点高亮它的关系；颜色代表实体类型。",
+        "page_study": "研学路线",
+        "graph_hint": "点节点看详情与双向关系，关系行可以继续点；滚轮缩放、拖拽平移，试试「两点路径」。",
         "timeline_title": "一师求学时期大事时间轴",
         "view_entity": "选一个实体继续提问",
         "view_btn": "查看该实体",
         "choose_route": "选择研学路线",
         "duration": "建议时长",
         "pois_count": "个点位",
-        "map_note": "地标坐标为近似位置，仅用于研学导览；地图瓦片来自 OpenStreetMap，离线时只显示地标与路线。",
+        "map_note": "手绘校园地图上的点位为示意位置；点击编号查看实拍图与讲解，滚轮缩放、拖拽平移。",
         "poi_list": "点位讲解",
         "open_entity": "查看实体卡片",
         "tasks": "研学任务卡",
@@ -112,11 +115,14 @@ TEXT = {
         "reload_now": "立即重新加载",
         "reloaded": "已重新加载最新数据。",
         "data_changed": "检测到数据文件变化，已自动更新。",
-        "placeholder": "试试问：毛泽东、冷水浴、一师水井……",
+        "placeholder": "试试问：毛泽东入学年份、一师水井图片、冷水浴……",
         "welcome": "随便问一位人物、一处旧址或一个事件，我来把它们之间的关系理清楚。",
         "examples": "可以这样问",
         "not_found": "知识库里暂时没有这个实体。",
         "try_these": "试试这些：",
+        "photo_none": "这个实体暂时没有配图。",
+        "fact_none": "资料里还没有「{field}」这一条。",
+        "fact_label": "{name} · {field}",
         "no_relations": "暂无关联关系。",
         "out_relations": "直接关联（本实体 → 其他实体）",
         "in_relations": "反向关联（其他实体 → 本实体）",
@@ -165,15 +171,15 @@ TEXT = {
         "nav": "Page",
         "page_chat": "Chat",
         "page_graph": "Knowledge graph",
-        "page_study": "Study",
-        "graph_hint": "Drag nodes to rearrange; click a node to highlight its relations. Colours show entity types.",
+        "page_study": "Routes",
+        "graph_hint": "Click a node for details and two-way relations; relation rows are clickable too. Scroll to zoom, drag to pan, and try the shortest-path tool.",
         "timeline_title": "Timeline of the Hunan First Normal years",
         "view_entity": "Pick an entity to ask about",
         "view_btn": "Open this entity",
         "choose_route": "Choose a route",
         "duration": "Duration",
         "pois_count": "stops",
-        "map_note": "Marker positions are approximate, for orientation only. Tiles come from OpenStreetMap; offline, only markers and the route are drawn.",
+        "map_note": "Positions on the illustrated campus map are indicative; click a number for photos and notes, scroll to zoom, drag to pan.",
         "poi_list": "Stops and notes",
         "open_entity": "Open entity card",
         "tasks": "Route tasks",
@@ -211,11 +217,14 @@ TEXT = {
         "reload_now": "Reload now",
         "reloaded": "Latest data loaded.",
         "data_changed": "Data files changed — page updated automatically.",
-        "placeholder": "Try: Mao Zedong, cold water bath, the well of HNFS…",
+        "placeholder": "Try: Mao's enrolment year, a photo of the well, the cold water bath…",
         "welcome": "Ask about a person, a site or an event, and I will map out the relations behind it.",
         "examples": "Try asking",
         "not_found": "That entity is not in the knowledge base yet.",
         "try_these": "Did you mean:",
+        "photo_none": "No photo available for this entity yet.",
+        "fact_none": "No such field recorded yet: {field}.",
+        "fact_label": "{name} · {field}",
         "no_relations": "No relations yet.",
         "out_relations": "Direct relations (this entity → others)",
         "in_relations": "Incoming relations (others → this entity)",
@@ -281,8 +290,12 @@ THEME_LABELS = {
 
 
 def current_theme() -> str:
-    """当前主题，存在 session_state 里；没设置过就沿用原来的深色。"""
-    return st.session_state.get("theme", THEME_DARK)
+    """当前主题，存在 session_state 里。
+
+    没设置过时默认亮色（THEME_LIGHT）—— 打开就是亮色模式，
+    需要深色的话在侧边栏「主题」里切换，选择会记在当前会话中。
+    """
+    return st.session_state.get("theme", THEME_LIGHT)
 
 
 REL_LABELS = {
@@ -305,6 +318,10 @@ REL_LABELS = {
     "EMBODIED_BY": ("体现", "Embodied by"),
     "USED_AS_TEXTBOOK": ("用作教材", "Used as textbook"),
     "PART_OF": ("属于", "Part of"),
+    "LIVED_IN": ("居住", "Lived in"),
+    "COMMEMORATES": ("纪念", "Commemorates"),
+    "INSCRIBED": ("题写", "Inscribed"),
+    "HELD_AT": ("举办于", "Held at"),
 }
 
 
@@ -367,18 +384,21 @@ def bg_data_uri() -> str:
 CSS = """
 <style>
 :root {
-    --ink: #f5ebe6;
-    --muted: #d7bdb6;
-    --gold: #e8c07d;
-    --accent: #d8452f;
-    --glass: rgba(28, 12, 14, 0.55);
-    --line: rgba(232, 192, 125, 0.22);
+    /* 深色模式整体调亮：文字更亮、金色更暖、玻璃层更通透、描边更显眼 */
+    --ink: #fdf8f5;
+    --muted: #ecdcd6;
+    --gold: #f6d9a4;
+    --accent: #f2705a;
+    --glass: rgba(104, 55, 55, 0.44);
+    --line: rgba(246, 217, 164, 0.36);
 }
 
 /* ---------- 背景 ---------- */
 [data-testid="stAppViewContainer"] {
     background-image:
-        linear-gradient(180deg, rgba(8,4,5,.58) 0%, rgba(8,4,5,.72) 45%, rgba(8,4,5,.86) 100%),
+        radial-gradient(120% 90% at 82% 0%, rgba(242, 112, 90, .24), transparent 55%),
+        radial-gradient(90% 70% at 10% 100%, rgba(246, 217, 164, .15), transparent 60%),
+        linear-gradient(180deg, rgba(46,21,23,.12) 0%, rgba(44,20,22,.20) 45%, rgba(40,18,20,.32) 100%),
         __BG__;
     background-size: cover;
     background-position: center center;
@@ -396,10 +416,10 @@ CSS = """
 [data-testid="stExpandSidebarButton"] {
     margin: .5rem 0 0 .5rem !important;
     padding: .2rem !important;
-    border: 1px solid rgba(232, 192, 125, .45) !important;
+    border: 1px solid rgba(237,201,140,.48) !important;
     border-radius: 999px !important;
-    background: rgba(28, 12, 14, .78) !important;
-    box-shadow: 0 8px 22px rgba(0, 0, 0, .38);
+    background: rgba(112, 58, 58, .70) !important;
+    box-shadow: 0 8px 22px rgba(0, 0, 0, .30);
     backdrop-filter: blur(8px);
     transition: all .18s ease;
 }
@@ -418,9 +438,9 @@ CSS = """
 
 /* ---------- 侧边栏 ---------- */
 [data-testid="stSidebar"] {
-    background: rgba(16, 7, 8, 0.72);
+    background: linear-gradient(180deg, rgba(122,62,60,.58), rgba(78,38,40,.62));
     border-right: 1px solid var(--line);
-    backdrop-filter: blur(10px);
+    backdrop-filter: blur(12px);
 }
 [data-testid="stSidebarContent"], [data-testid="stSidebarUserContent"] { background: transparent; }
 [data-testid="stSidebar"] * { color: var(--ink); }
@@ -440,9 +460,9 @@ code { background: rgba(232,192,125,.12); color: #ffe9bd; border-radius: 4px; }
     margin-bottom: 1.1rem;
     border-radius: 22px;
     border: 1px solid var(--line);
-    background: linear-gradient(140deg, rgba(126, 28, 24, .55), rgba(22, 9, 11, .62) 62%);
-    box-shadow: 0 20px 50px rgba(0, 0, 0, .38);
-    backdrop-filter: blur(7px);
+    background: linear-gradient(140deg, rgba(196, 74, 58, .60), rgba(96, 46, 48, .48) 62%);
+    box-shadow: 0 20px 50px rgba(0, 0, 0, .26);
+    backdrop-filter: blur(8px);
 }
 .hero .badge {
     display: inline-block;
@@ -510,7 +530,7 @@ code { background: rgba(232,192,125,.12); color: #ffe9bd; border-radius: 4px; }
 .stats .chip {
     font-size: .82rem;
     color: var(--muted);
-    background: rgba(255,255,255,.05);
+    background: rgba(255,255,255,.13);
     border: 1px solid var(--line);
     border-radius: 999px;
     padding: .3rem .8rem;
@@ -574,8 +594,8 @@ code { background: rgba(232,192,125,.12); color: #ffe9bd; border-radius: 4px; }
 /* ---------- 按钮 ---------- */
 .stButton > button {
     border-radius: 999px;
-    border: 1px solid rgba(232,192,125,.32);
-    background: rgba(255,255,255,.05);
+    border: 1px solid rgba(237,201,140,.36);
+    background: rgba(255,255,255,.08);
     color: var(--ink);
     font-size: .88rem;
     padding: .32rem .85rem;
@@ -592,11 +612,11 @@ code { background: rgba(232,192,125,.12); color: #ffe9bd; border-radius: 4px; }
 [data-testid="stBottom"] > div,
 [data-testid="stBottomBlockContainer"] { background: transparent !important; }
 [data-testid="stChatInput"] {
-    background: rgba(26, 11, 13, .82);
-    border: 1px solid rgba(232,192,125,.3);
+    background: rgba(112, 58, 58, .62);
+    border: 1px solid rgba(246,217,164,.42);
     border-radius: 18px;
     overflow: hidden;
-    box-shadow: 0 12px 30px rgba(0,0,0,.4);
+    box-shadow: 0 12px 30px rgba(0,0,0,.32);
     backdrop-filter: blur(8px);
 }
 [data-testid="stChatInput"] div[data-baseweb="textarea"] { background: transparent; }
@@ -607,12 +627,138 @@ code { background: rgba(232,192,125,.12); color: #ffe9bd; border-radius: 4px; }
 [data-testid="stExpander"] details {
     border: 1px solid var(--line);
     border-radius: 14px;
-    background: rgba(255,255,255,.04);
+    background: rgba(255,255,255,.12);
 }
 [data-testid="stAlert"] { border-radius: 14px; }
 hr { border-color: var(--line); }
 .stRadio [role="radiogroup"] { gap: .35rem; }
 img { border-radius: 14px; }
+
+/* ---------- 新版页面组件（路线 / 图谱 / 调研） ---------- */
+.page-head { margin: .2rem 0 1rem; }
+.page-head h2 { margin: .15rem 0 .35rem; font-size: 1.5rem; }
+.page-head p { margin: 0; color: var(--muted); font-size: .92rem; line-height: 1.7; }
+.page-head .eyebrow {
+    font-size: .72rem; letter-spacing: .16em; color: var(--gold);
+    text-transform: uppercase; opacity: .95;
+}
+
+.study-hero {
+    position: relative; overflow: hidden; border: 1px solid var(--line);
+    border-radius: 22px; padding: 1.15rem 1.35rem 1.25rem; margin-bottom: 1rem;
+    background:
+        radial-gradient(120% 140% at 100% 0%, rgba(242,112,90,.28), transparent 55%),
+        linear-gradient(135deg, rgba(124,62,62,.62), rgba(74,36,38,.54));
+    box-shadow: 0 18px 40px rgba(0,0,0,.20);
+}
+.study-hero h2 { margin: .25rem 0 .4rem; font-size: 1.55rem; }
+.study-hero .eyebrow { color: var(--gold); }
+.study-hero p { margin: 0; color: var(--muted); font-size: .92rem; line-height: 1.7; max-width: 760px; }
+.study-hero .hero-meta { display: flex; flex-wrap: wrap; gap: .45rem; margin-top: .8rem; }
+.study-hero .hero-meta span {
+    font-size: .75rem; color: #ffe7c4; border: 1px solid var(--line);
+    background: rgba(237,201,140,.10); border-radius: 999px; padding: .22rem .65rem;
+}
+
+.route-card {
+    position: relative; overflow: hidden; border-radius: 18px;
+    border: 1px solid var(--line); min-height: 182px; margin-bottom: .5rem;
+    background: #2a1517; box-shadow: 0 12px 26px rgba(0,0,0,.20);
+    transition: transform .18s ease, border-color .18s ease;
+}
+.route-card:hover { transform: translateY(-2px); border-color: var(--gold); }
+.route-card .rc-bg {
+    position: absolute; inset: 0; background-size: cover; background-position: center;
+    filter: saturate(.9);
+}
+.route-card .rc-shade {
+    position: absolute; inset: 0;
+    background: linear-gradient(180deg, rgba(14,6,7,.18), rgba(14,6,7,.88));
+}
+.route-card .rc-body { position: relative; padding: .8rem .9rem; display: flex; flex-direction: column; gap: .3rem; min-height: 182px; justify-content: flex-end; }
+.route-card .rc-kicker { font-size: .68rem; letter-spacing: .14em; color: var(--gold); text-transform: uppercase; }
+.route-card .rc-title { font-size: 1.08rem; font-weight: 700; color: #fff6ea; line-height: 1.35; }
+.route-card .rc-sub { font-size: .76rem; color: #e3cbc3; line-height: 1.55; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; max-height: 2.7em; }
+.route-card .rc-stats { display: flex; gap: .4rem; flex-wrap: wrap; margin-top: .15rem; }
+.route-card .rc-stats span {
+    font-size: .7rem; color: #ffe4bd; background: rgba(20,8,10,.55);
+    border: 1px solid rgba(237,201,140,.30); border-radius: 999px; padding: .12rem .5rem;
+}
+.route-card.active { border-color: var(--gold); box-shadow: 0 0 0 2px rgba(237,201,140,.25), 0 14px 30px rgba(0,0,0,.26); }
+.route-card.active::after {
+    content: "✓"; position: absolute; right: 10px; top: 8px; z-index: 3;
+    width: 22px; height: 22px; border-radius: 50%; background: var(--gold); color: #3a1114;
+    font-size: 13px; font-weight: 700; display: flex; align-items: center; justify-content: center;
+}
+
+.route-brief {
+    display: flex; flex-wrap: wrap; gap: .5rem; align-items: center;
+    border: 1px solid var(--line); border-radius: 16px; padding: .65rem .9rem;
+    background: var(--glass); margin: .35rem 0 .8rem;
+}
+.route-brief b { color: var(--gold); }
+.route-brief .muted { color: var(--muted); font-size: .82rem; }
+.route-brief .rc-tag {
+    font-size: .72rem; color: var(--gold); border: 1px solid var(--line);
+    background: rgba(237,201,140,.08); border-radius: 999px; padding: .14rem .55rem;
+}
+
+.stop-list { display: flex; flex-direction: column; gap: .45rem; }
+.stop-row {
+    display: flex; gap: .65rem; align-items: flex-start;
+    border: 1px solid var(--line); border-radius: 14px; padding: .6rem .7rem;
+    background: rgba(255,255,255,.12);
+}
+.stop-no {
+    flex: 0 0 26px; height: 26px; border-radius: 50%;
+    background: linear-gradient(135deg, #c44532, #e8c07d); color: #2a0d10;
+    font-weight: 700; font-size: .8rem; display: flex; align-items: center; justify-content: center;
+}
+.stop-body { flex: 1; min-width: 0; }
+.stop-name { font-size: .93rem; font-weight: 600; color: var(--ink); }
+.stop-meta { font-size: .72rem; color: var(--muted); margin-top: .12rem; }
+.stop-why { font-size: .76rem; color: var(--muted); margin-top: .25rem; line-height: 1.55; }
+
+.step-card {
+    border: 1px solid var(--line); border-radius: 16px; padding: .8rem .9rem .7rem;
+    background: var(--glass); height: 100%;
+}
+.step-card .step-no { font-size: .7rem; letter-spacing: .12em; color: var(--gold); text-transform: uppercase; }
+.step-card h4 { margin: .25rem 0 .35rem; font-size: 1rem; }
+.step-card p { margin: 0; color: var(--muted); font-size: .78rem; line-height: 1.6; }
+
+.progress-wrap { margin: .3rem 0 .7rem; }
+.progress-wrap .plabel { display: flex; justify-content: space-between; font-size: .78rem; color: var(--muted); margin-bottom: .3rem; }
+.progress-track { height: 9px; border-radius: 999px; background: rgba(255,255,255,.18); border: 1px solid var(--line); overflow: hidden; }
+.progress-fill { height: 100%; border-radius: 999px; background: linear-gradient(90deg, #c44532, #e8c07d); transition: width .3s ease; }
+
+.plan-hint {
+    border: 1px dashed var(--line); border-radius: 14px; padding: .65rem .85rem;
+    color: var(--muted); font-size: .82rem; line-height: 1.65;
+    background: rgba(237,201,140,.05); margin: .3rem 0 .9rem;
+}
+.poi-chips { display: flex; flex-wrap: wrap; gap: .4rem; margin: .2rem 0 1rem; }
+.poi-chip {
+    font-size: .76rem; color: var(--ink); border: 1px solid var(--line);
+    background: rgba(255,255,255,.13); border-radius: 999px; padding: .24rem .65rem;
+}
+
+.poi-grid-card { border: 1px solid var(--line); border-radius: 18px; overflow: hidden; background: var(--glass); height: 100%; }
+.poi-grid-card .pc-img { height: 150px; background-size: cover; background-position: center; background-color: rgba(237,201,140,.08); }
+.poi-grid-card .pc-body { padding: .7rem .85rem .85rem; }
+.poi-grid-card .pc-title { font-size: .98rem; font-weight: 700; color: var(--ink); }
+.poi-grid-card .pc-addr { font-size: .72rem; color: var(--muted); margin: .18rem 0 .4rem; }
+.poi-grid-card .pc-intro { font-size: .79rem; color: var(--muted); line-height: 1.65; }
+
+.gallery-grid { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: .5rem; }
+.gallery-grid figure { margin: 0; border-radius: 12px; overflow: hidden; border: 1px solid var(--line); background: rgba(255,255,255,.11); }
+.gallery-grid img { width: 100%; height: 118px; object-fit: cover; display: block; }
+.gallery-grid figcaption { font-size: .7rem; color: var(--muted); padding: .3rem .45rem; }
+@media (max-width: 900px) { .gallery-grid { grid-template-columns: repeat(2, minmax(0,1fr)); } }
+
+.fact-card { display: flex; align-items: baseline; gap: .75rem; flex-wrap: wrap; margin: .15rem 0 .1rem; }
+.fact-value { font-size: 2.05rem; font-weight: 700; color: #edc98c; letter-spacing: .02em; line-height: 1.15; }
+.fact-label { font-size: .82rem; color: var(--muted); }
 </style>
 """
 
@@ -634,17 +780,50 @@ html, body { color-scheme: light; }
     --line: rgba(31, 36, 48, 0.14);
 }
 
-/* ---------- 背景：白底 ---------- */
+/* ---------- 背景：亮色模式也用同一张底图，压一层暖白遮罩保证文字可读 ---------- */
 [data-testid="stApp"], [data-testid="stAppViewContainer"] {
-    background-color: #f7f8fa !important;
+    background-color: #fbf7f5 !important;
 }
-[data-testid="stAppViewContainer"] { background-image: none !important; }
+[data-testid="stAppViewContainer"] {
+    background-image:
+        radial-gradient(120% 90% at 84% 0%, rgba(192, 57, 43, .16), transparent 52%),
+        radial-gradient(90% 70% at 8% 100%, rgba(214, 122, 40, .13), transparent 58%),
+        linear-gradient(180deg, rgba(255,252,250,.88) 0%, rgba(255,250,247,.91) 45%, rgba(253,245,241,.94) 100%),
+        __BG_LIGHT__;
+    background-size: cover;
+    background-position: center center;
+    background-repeat: no-repeat;
+    background-attachment: fixed;
+}
 [data-testid="stHeader"] { background: transparent !important; }
 [data-testid="stExpandSidebarButton"] {
     background: #ffffff !important;
-    border-color: rgba(31, 36, 48, .18) !important;
+    border-color: rgba(192, 57, 43, .28) !important;
     box-shadow: 0 6px 18px rgba(31, 36, 48, .12) !important;
 }
+
+/* ---------- 红色元素点缀（避免亮色模式太素） ---------- */
+/* 顶部一条红色渐变细条 */
+[data-testid="stAppViewContainer"]::before {
+    content: ""; position: fixed; top: 0; left: 0; right: 0; height: 3px;
+    z-index: 99999; pointer-events: none;
+    background: linear-gradient(90deg, #b3271c 0%, #d8452f 36%, #e0813f 68%, #b3271c 100%);
+}
+/* 主视觉左侧红色竖条（写在后面的 .hero 规则里，避免被 border 简写覆盖） */
+/* 区块小标题前加一条红色竖线 */
+.section-title { position: relative; padding-left: .62rem !important; }
+.section-title::before {
+    content: ""; position: absolute; left: 0; top: .16em; bottom: .16em;
+    width: 3px; border-radius: 2px; background: #c0392b;
+}
+/* 页面眉标用红色 */
+.page-head .eyebrow, .study-hero .eyebrow { color: #c0392b !important; opacity: 1 !important; }
+/* 分割线由灰变红渐变 */
+hr {
+    border: none !important; height: 1px !important;
+    background: linear-gradient(90deg, #c0392b, rgba(192,57,43,.18) 45%, transparent) !important;
+}
+/* 聊天气泡左侧一道细红线（同样写在后面的气泡规则里） */
 
 /* ---------- 侧边栏 ---------- */
 [data-testid="stSidebar"] {
@@ -652,22 +831,30 @@ html, body { color-scheme: light; }
     border-right: 1px solid #e4e8ee !important;
     backdrop-filter: none !important;
 }
+/* 侧边栏顶部一道红色装饰条 */
+[data-testid="stSidebar"] > div:first-child::before {
+    content: ""; display: block; height: 3px; margin: 0 0 .75rem;
+    border-radius: 999px;
+    background: linear-gradient(90deg, #b3271c, #e0813f);
+}
 [data-testid="stSidebar"] * { color: var(--ink); }
 
 /* ---------- 顶部主视觉 ---------- */
 .hero {
-    background: linear-gradient(140deg, #ffffff, #fdf7f3 62%) !important;
-    border: 1px solid #eadfd6 !important;
+    background: linear-gradient(140deg, #ffffff, #fdf0ea 62%) !important;
+    border: 1px solid #f2ddd5 !important;
+    border-left: 4px solid #c0392b !important;
     box-shadow: 0 12px 30px rgba(31, 36, 48, .07) !important;
     backdrop-filter: none !important;
 }
 .hero::after {
-    background: radial-gradient(120% 80% at 88% 10%, rgba(216, 69, 47, .06), transparent 60%) !important;
+    background: radial-gradient(120% 80% at 88% 10%, rgba(192, 57, 43, .14), transparent 60%) !important;
 }
+/* 徽章改成红色，跟顶部红条呼应 */
 .hero .badge {
-    color: #8a5a15 !important;
-    border-color: rgba(164, 97, 26, .3) !important;
-    background: #fdf6ea !important;
+    color: #c0392b !important;
+    border-color: rgba(192, 57, 43, .32) !important;
+    background: #fdeeeb !important;
 }
 .hero h1, .hero h1 .h1-en, .hero p { color: var(--ink) !important; }
 .hero h1 .h1-en { color: #a4611a !important; opacity: 1 !important; }
@@ -689,10 +876,11 @@ html, body { color-scheme: light; }
     border-color: #e4e8ee !important;
     color: var(--muted) !important;
 }
-.stats .chip b { color: #a4611a !important; }
+.stats .chip b { color: #c0392b !important; }
 [data-testid="stChatMessage"] {
     background: #ffffff !important;
-    border: 1px solid #e4e8ee !important;
+    border: 1px solid #e8e2dd !important;
+    border-left: 3px solid rgba(192, 57, 43, .55) !important;
     box-shadow: 0 8px 20px rgba(31, 36, 48, .06) !important;
     backdrop-filter: none !important;
 }
@@ -700,11 +888,11 @@ html, body { color-scheme: light; }
 /* ---------- 实体卡片 / 关系路径 ---------- */
 .ent-name { color: var(--ink) !important; }
 .ent-type {
-    color: #8a5a15 !important;
-    border-color: rgba(164, 97, 26, .28) !important;
-    background: #fdf6ea !important;
+    color: #c0392b !important;
+    border-color: rgba(192, 57, 43, .3) !important;
+    background: #fdeeeb !important;
 }
-.section-title { color: #8a5a15 !important; opacity: 1 !important; }
+.section-title { color: #a83a2c !important; opacity: 1 !important; }
 .path-badge { background: var(--accent) !important; color: #fff !important; }
 .pathline .pn {
     background: #ffffff !important;
@@ -853,6 +1041,29 @@ hr { border-color: #e4e8ee !important; }
     color: var(--ink) !important;
     border: 1px solid #e4e8ee !important;
 }
+
+/* ---------- 新版组件在亮色主题下的覆盖 ---------- */
+.study-hero {
+    background:
+        radial-gradient(120% 140% at 100% 0%, rgba(216,69,47,.10), transparent 55%),
+        linear-gradient(135deg, #ffffff, #fdf5ef) !important;
+    border-color: #eadfd6 !important;
+    box-shadow: 0 14px 32px rgba(31,36,48,.07) !important;
+}
+.study-hero h2, .study-hero p { color: var(--ink) !important; }
+.study-hero .hero-meta span {
+    color: #7a4a12 !important; background: #fdf6ea !important; border-color: rgba(164,97,26,.25) !important;
+}
+.stop-row { background: #ffffff !important; border-color: #e4e8ee !important; }
+.stop-name { color: var(--ink) !important; }
+.progress-track { background: #edf0f5 !important; border-color: #e4e8ee !important; }
+.page-head p, .step-card p, .poi-grid-card .pc-intro, .stop-meta, .stop-why { color: var(--muted) !important; }
+.step-card, .poi-grid-card, .route-brief { background: #ffffff !important; border-color: #e4e8ee !important; }
+.poi-grid-card .pc-img { background-color: #f2f4f8 !important; }
+.plan-hint { background: #fdf8f0 !important; border-color: #e3d5c2 !important; color: #5b6572 !important; }
+.poi-chip { background: #ffffff !important; border-color: #e4e8ee !important; color: #1f2430 !important; }
+.fact-value { color: #8a3a1e !important; }
+.fact-label { color: #5b6572 !important; }
 </style>
 """
 
@@ -901,11 +1112,14 @@ def themed_html(html: str) -> str:
 
 def inject_css() -> None:
     uri = bg_data_uri()
+    # 两个主题共用同一张背景图，各自的遮罩颜色不同（深色压暗、亮色提亮）
     bg = f'url("{uri}")' if uri else \
-        "linear-gradient(160deg, #3a0f10 0%, #1a0708 55%, #120506 100%)"
+        "linear-gradient(160deg, #6e2624 0%, #4a1719 55%, #381114 100%)"
+    bg_light = f'url("{uri}")' if uri else \
+        "linear-gradient(160deg, #fdf6f2 0%, #f7ece6 55%, #f2e4dc 100%)"
     css = CSS.replace("__BG__", bg)
     if current_theme() == THEME_LIGHT:
-        css += LIGHT_CSS          # 亮色：追加覆盖样式，深色样式保持原样
+        css += LIGHT_CSS.replace("__BG_LIGHT__", bg_light)
     st.markdown(css, unsafe_allow_html=True)
 
 
@@ -1033,6 +1247,39 @@ def resolve_image(node: dict) -> str | None:
     return fp.resolve_any(ROOT, "assets", node["id"], IMG_EXTS)
 
 
+@st.cache_data(show_spinner=False, max_entries=160)
+def _b64_file(path: str, mtime: float) -> str:
+    """读文件并 base64；mtime 参与缓存键，图片替换后自动失效。"""
+    with open(path, "rb") as f:
+        return base64.b64encode(f.read()).decode()
+
+
+def thumb_uri(node: dict) -> str:
+    """知识图谱详情卡用的缩略图（assets/_thumbs/<id>.jpg，没有就退回原图）。"""
+    path = resolve_image(node)
+    if not path:
+        return ""
+    stem = os.path.splitext(os.path.basename(path))[0]
+    thumb = os.path.join(ASSETS, "_thumbs", stem + ".jpg")
+    use = thumb if os.path.exists(thumb) else path
+    try:
+        return "data:image/jpeg;base64," + _b64_file(use, os.path.getmtime(use))
+    except OSError:
+        return ""
+
+
+def map_uri(name: str) -> str:
+    """手绘校园地图转 base64（campos 图放进 iframe 也能显示）。"""
+    for candidate in (name, name + ".jpg", name + ".png"):
+        path = os.path.join(MAPS, candidate)
+        if os.path.exists(path):
+            try:
+                return "data:image/jpeg;base64," + _b64_file(path, os.path.getmtime(path))
+            except OSError:
+                return ""
+    return ""
+
+
 def find_entity(prompt: str, index: dict) -> str | None:
     """最长别名优先命中（避免「湖南第一师范旧址」被「第一师范旧址」抢走）。"""
     text = prompt.strip().lower()
@@ -1049,6 +1296,12 @@ def find_entity(prompt: str, index: dict) -> str | None:
 
 
 def find_all_entities(prompt: str, index: dict) -> list[str]:
+    """（保留兼容）返回句中出现的全部实体。
+
+    问答主流程已改用 qa_intent.match_entities()：那边做了「命中区间不重叠、
+    长的优先」，能避免「一师水井」被「一师」抢走而误判成两点关系查询。
+    这里保留给外部脚本调用。
+    """
     text = prompt.strip().lower()
     hits: list[tuple[int, int, str]] = []
     for alias, nid in index["aliases"].items():
@@ -1238,6 +1491,57 @@ def render_path_card(msg: dict, index: dict, lang: str) -> None:
     st.caption(f'{time_label} {msg.get("elapsed_us", 0):.2f} µs · {t["path_caption"]}')
 
 
+def render_photo_card(msg: dict, index: dict, lang: str) -> None:
+    """只回一张图：问「XX 图片 / 照片」时用。
+
+    刻意不带标题和关系，只留图片本身 + 一行图片署名（版权要求）。
+    如果连署名都不想要，删掉 st.image 的 caption 参数即可。
+    """
+    t = TEXT[lang]
+    node = index["nodes"].get(msg.get("entity_id", ""))
+    if node is None:
+        st.warning(t["entity_removed"])
+        return
+    path = resolve_image(node)
+    if not path:
+        st.markdown(f'**{display_name(node, lang)}**')
+        st.caption(t["photo_none"])
+        return
+    st.image(path, width=460, caption=image_credit(node, lang) or None)
+
+
+def render_fact_card(msg: dict, index: dict, lang: str) -> None:
+    """只回一个字段值：问「毛泽东入学年份」就给 1913，不铺整张名片。
+
+    字段全部来自 kg.json 的 facts，查不到就说没有，不会编。
+    """
+    t = TEXT[lang]
+    node = index["nodes"].get(msg.get("entity_id", ""))
+    if node is None:
+        st.warning(t["entity_removed"])
+        return
+
+    field = msg.get("field", "")
+    fact = next((f for f in node.get("facts") or [] if f.get("key") == field), None)
+    if fact is None:
+        st.caption(t["fact_none"].format(field=field))
+        return
+
+    en = lang == "en"
+    value = fact.get("value_en") if en and fact.get("value_en") else fact.get("value")
+    label = fact.get("key_en") if en and fact.get("key_en") else field
+    note = fact.get("note_en") if en and fact.get("note_en") else fact.get("note")
+
+    st.markdown(
+        f'<div class="fact-card"><span class="fact-value">{value}</span>'
+        f'<span class="fact-label">'
+        f'{t["fact_label"].format(name=display_name(node, lang), field=label)}</span></div>',
+        unsafe_allow_html=True,
+    )
+    if note:
+        st.caption(note)
+
+
 def render_message(msg: dict, index: dict, lang: str, idx: int) -> None:
     with st.chat_message(msg["role"]):
         if msg["role"] == "user":
@@ -1250,6 +1554,10 @@ def render_message(msg: dict, index: dict, lang: str, idx: int) -> None:
                 st.warning(TEXT[lang]["entity_removed"])
         elif msg.get("kind") == "path":
             render_path_card(msg, index, lang)
+        elif msg.get("kind") == "photo":
+            render_photo_card(msg, index, lang)
+        elif msg.get("kind") == "fact":
+            render_fact_card(msg, index, lang)
         elif msg.get("kind") == "route":
             render_route_card(msg, index, lang)
         else:
@@ -1263,27 +1571,41 @@ def render_message(msg: dict, index: dict, lang: str, idx: int) -> None:
 
 
 def answer_rule(prompt: str, index: dict, lang: str) -> dict:
-    """规则引擎：别名最长匹配找实体，命中两个就走 C 的 BFS 最短路。
+    """规则引擎：先判意图，再挑工具执行。
+
+    意图由 qa_intent.detect() 给出，四种走法：
+        photo  「一师水井图片」           → 只回一张图，不铺整张卡
+        fact   「毛泽东入学年份」         → 只回这个字段的值
+        path   「毛泽东和杨昌济什么关系」 → 交给 C 的 BFS 求最短路
+        entity 「毛泽东」                 → 完整实体名片
 
     没有配置大模型、或模型调用/校验失败时，由 answer() 回退到这里，
     保证离线、断网、没填 Key 的机器上核心算法依然可用。
     """
     t = TEXT[lang]
+    plan = qa_intent.detect(prompt, index, lang)
+    intent = plan.get("intent")
+
+    if intent == "photo":
+        return {"role": "assistant", "kind": "photo", "entity_id": plan["entity"]}
+    if intent == "fact":
+        return {"role": "assistant", "kind": "fact",
+                "entity_id": plan["entity"], "field": plan.get("field", "")}
+    if intent == "path":
+        return make_path_message(plan["a"], plan["b"], index)
+    if intent == "entity":
+        return {"role": "assistant", "kind": "entity", "entity_id": plan["entity"]}
+
     entity_id = find_entity(prompt, index)
-    if not entity_id:
-        display = [display_name(n, lang) for n in index["kg"]["nodes"]]
-        close = difflib.get_close_matches(prompt.strip(), display, n=3, cutoff=0.3)
-        text = f"⚠️ {t['not_found']}"
-        if close:
-            text += "\n\n" + t["try_these"] + " " + " / ".join(f"**{c}**" for c in close)
-        return {"role": "assistant", "kind": "notice", "text": text, "suggestions": close}
+    if entity_id:
+        return {"role": "assistant", "kind": "entity", "entity_id": entity_id}
 
-    others = [e for e in find_all_entities(prompt, index) if e != entity_id]
-    if others:
-        # 一句话里出现两个实体 → 交给 C 的 BFS 算最短路径
-        return make_path_message(entity_id, others[0], index)
-
-    return {"role": "assistant", "kind": "entity", "entity_id": entity_id}
+    display = [display_name(n, lang) for n in index["kg"]["nodes"]]
+    close = difflib.get_close_matches(prompt.strip(), display, n=3, cutoff=0.3)
+    text = f"⚠️ {t['not_found']}"
+    if close:
+        text += "\n\n" + t["try_these"] + " " + " / ".join(f"**{c}**" for c in close)
+    return {"role": "assistant", "kind": "notice", "text": text, "suggestions": close}
 
 
 # ============================================================
@@ -1295,14 +1617,11 @@ AGENT_TEXT = {
         "rule_tag": "⚙️ 规则引擎（{why}）· 工具：{tool} · {ms:.0f} ms",
         "why_nokey": "未配置 API Key，走离线规则",
         "why_fail": "模型不可用或参数不合法，已回退",
-        "why_http": "模型调用失败 {err}，已回退",
-        "ping_btn": "🔌 测试模型连接",
-        "ping_ok": "✅ 连接成功",
-        "ping_fail": "❌ 连接失败",
-        "ping_hint": "当前配置：{base} · 模型 {model} · Key {key}。点左边按钮可当场测试连通性。",
         "tool_path": "C-BFS 最短路",
         "tool_entity": "邻接表一跳邻居",
         "tool_route": "贪心最近邻路线",
+        "tool_photo": "实体配图直出",
+        "tool_fact": "字段直查",
         "tool_rule": "别名最长匹配",
         "log": "调用记录",
         "log_hint": "每次问答的模型、参数校验、实际调用的工具与耗时，可直接导出作为验收证据。",
@@ -1318,14 +1637,11 @@ AGENT_TEXT = {
         "rule_tag": "⚙️ Rule engine ({why}) · tool: {tool} · {ms:.0f} ms",
         "why_nokey": "no API key, offline rules",
         "why_fail": "model unavailable or params invalid, fell back",
-        "why_http": "model call failed {err}, fell back",
-        "ping_btn": "🔌 Test model connection",
-        "ping_ok": "✅ Connected",
-        "ping_fail": "❌ Connection failed",
-        "ping_hint": "Config: {base} · model {model} · key {key}. Click the button to test the connection.",
         "tool_path": "C BFS shortest path",
         "tool_entity": "adjacency 1-hop neighbours",
         "tool_route": "greedy nearest neighbour route",
+        "tool_photo": "entity photo only",
+        "tool_fact": "field lookup",
         "tool_rule": "longest-alias match",
         "log": "Tool-call log",
         "log_hint": "Model, param validation, tool used and latency per turn; exportable as evidence.",
@@ -1360,6 +1676,11 @@ def _llm_dispatch(params: dict, index: dict, lang: str) -> tuple[dict | None, st
         return make_path_message(params["a"], params["b"], index), "path"
     if intent in ("entity", "neighbors"):
         return {"role": "assistant", "kind": "entity", "entity_id": params["entity"]}, "entity"
+    if intent == "photo":
+        return {"role": "assistant", "kind": "photo", "entity_id": params["entity"]}, "photo"
+    if intent == "fact":
+        return {"role": "assistant", "kind": "fact", "entity_id": params["entity"],
+                "field": params.get("field", "")}, "fact"
     if intent == "route":
         return _tool_route(params, index, lang), "route"
     return None, "unknown"
@@ -1393,13 +1714,7 @@ def render_agent_tag(meta: dict, lang: str) -> None:
         line = txt["llm_tag"].format(model=meta.get("model", ""), n=meta.get("attempts", 1),
                                      tool=tool, ms=float(meta.get("elapsed_ms", 0.0)))
     else:
-        err = str(meta.get("error", ""))
-        if err.startswith("HTTP"):
-            why = txt["why_http"].format(err=err)
-        elif "API Key" in err:
-            why = txt["why_nokey"]
-        else:
-            why = txt["why_fail"]
+        why = txt["why_nokey"] if "API Key" in str(meta.get("error", "")) else txt["why_fail"]
         line = txt["rule_tag"].format(why=why, tool=tool,
                                       ms=float(meta.get("elapsed_ms", 0.0)))
     st.caption(line)
@@ -1458,22 +1773,6 @@ def render_agent_log(lang: str) -> None:
     entries = st.session_state.get("agent_log", [])
     with st.expander(f"🧾 {txt['log']}（{len(entries)}）", expanded=False):
         st.caption(txt["log_hint"])
-
-        # 模型连通性自检：失败时把 HTTP 状态码与平台提示直接显示出来
-        c1, c2 = st.columns([1, 3])
-        if c1.button(txt["ping_btn"], key="agent-ping", width="stretch"):
-            ok, detail = agent_llm.ping()
-            st.session_state["agent_ping"] = (ok, detail)
-        stored = st.session_state.get("agent_ping")
-        if stored:
-            ok, detail = stored
-            (c2.success if ok else c2.error)(f"{txt['ping_ok'] if ok else txt['ping_fail']}\n\n{detail}")
-        else:
-            cfg = agent_llm.config()
-            c2.caption(txt["ping_hint"].format(
-                base=cfg["base_url"], model=cfg["model"],
-                key=("已配置" if cfg["api_key"] else "未配置")))
-
         if not entries:
             st.caption(txt["log_empty"])
             return
@@ -1481,9 +1780,7 @@ def render_agent_log(lang: str) -> None:
             [{"时间": e["time"], "引擎": e["engine"], "模型": e["model"],
               "意图": e["intent"] or "-", "工具": e["tool"],
               "参数校验": "通过" if e["validated"] else "回退",
-              "重试": e.get("attempts", 0), "耗时(ms)": e["elapsed_ms"],
-              "错误": str(e.get("error", ""))[:40] or "-",
-              "输入": e["prompt"][:24]}
+              "耗时(ms)": e["elapsed_ms"], "输入": e["prompt"][:28]}
              for e in entries[-20:]],
             width="stretch", hide_index=True,
         )
@@ -1633,14 +1930,20 @@ def load_routes(lang: str, index: dict) -> list[dict]:
                 "addr": pick_text(poi, "addr", lang),
                 "intro": pick_text(poi, "intro", lang),
                 "lat": poi.get("lat"), "lng": poi.get("lng"),
+                "campus": poi.get("campus", ""), "x": poi.get("x"), "y": poi.get("y"),
                 "image": image,
+                "themes": [str(x).upper() for x in (poi.get("themes") or [])],
+                "primary": str(poi.get("primary") or "").upper(),
                 "has_image": os.path.exists(os.path.join(ASSETS, image)),
             })
         out.append({
             "id": route.get("id", ""),
+            "campus": route.get("campus", "chengnan"),
             "title": pick_text(route, "title", lang),
             "duration": pick_text(route, "duration", lang),
             "summary": pick_text(route, "summary", lang),
+            "tags": (route.get("tags_en") if lang == "en" and route.get("tags_en")
+                     else route.get("tags", [])),
             "tasks": (route.get("tasks_en") if lang == "en" and route.get("tasks_en")
                       else route.get("tasks", [])),
             "pois": ordered,
@@ -1726,12 +2029,19 @@ def goto_page(name: str) -> None:
 
 
 def render_graph_page(index: dict, lang: str, t: dict) -> None:
-    st.markdown(f"#### 🕸️ {t['page_graph']}")
-    st.caption(t["graph_hint"])
+    L = (lambda zh, en: zh) if lang == "zh" else (lambda zh, en: en)
+    st.markdown(
+        f'<div class="page-head"><div class="eyebrow">KNOWLEDGE GRAPH · 2026</div>'
+        f'<h2>🕸️ {t["page_graph"]}</h2><p>{t["graph_hint"]}</p></div>',
+        unsafe_allow_html=True,
+    )
 
     nodes_payload = [
         {"id": nid, "label": display_name(node, lang),
-         "type": (node.get("type") or "CONCEPT").upper()}
+         "type": (node.get("type") or "CONCEPT").upper(),
+         "typeLabel": type_label(node.get("type"), lang),
+         "desc": (node.get("desc_en") if lang == "en" and node.get("desc_en") else node.get("desc", "")),
+         "img": thumb_uri(node)}
         for nid, node in index["nodes"].items()
     ]
     edges_payload = [
@@ -1741,8 +2051,13 @@ def render_graph_page(index: dict, lang: str, t: dict) -> None:
     ]
     legend = {k: (v[0] if lang == "zh" else v[1]) for k, v in TYPE_LABELS.items()}
     components.html(
-        themed_html(ui_graph.graph_component(nodes_payload, edges_payload, legend, height=640)),
-        height=650, scrolling=False,
+        ui_graph.graph_component(
+            nodes_payload, edges_payload, legend,
+            hint=L("点击节点查看详情 · 滚轮缩放 · 拖拽平移 · 图例可筛选类型",
+                   "Click a node for details · scroll to zoom · drag to pan · click the legend to filter"),
+            height=720, lang=lang, theme=current_theme(),
+        ),
+        height=730, scrolling=False,
     )
 
     ids = list(index["nodes"])
@@ -1757,6 +2072,35 @@ def render_graph_page(index: dict, lang: str, t: dict) -> None:
         st.session_state.messages.append(
             {"role": "assistant", "kind": "entity", "entity_id": picked})
         goto_page("chat")
+
+    # ---- 实拍影像：把「照片 → 数据」这件事直接摊开给用户看 ----
+    shots = [
+        ("school", "第一师范主楼", "Main building"),
+        ("statue", "毛泽东铜像广场", "Statue square"),
+        ("paifang", "城南书院石坊", "Academy archway"),
+        ("class8", "第八班教室", "Class Eight classroom"),
+        ("dorm8", "第八班寝室", "Class Eight dormitory"),
+        ("hall", "大礼堂内景", "Assembly hall"),
+        ("courtyard", "校园中庭铜像群", "Courtyard sculptures"),
+        ("well", "水井", "The well"),
+        ("readingroom", "阅报室", "Reading room"),
+        ("playground", "体育锻炼场", "Exercise ground"),
+        ("nightclass", "工人夜学", "Night school"),
+        ("houzishi", "猴子石缴枪展陈", "Houzishi diorama"),
+    ]
+    with st.expander(L("📷 城南校区实拍影像（12 张，已用于实体配图）",
+                       "📷 Field photos from the Chengnan campus (12, used as entity images)"),
+                     expanded=False):
+        cols = st.columns(4)
+        for i, (eid, zh, en) in enumerate(shots):
+            node = index["nodes"].get(eid)
+            path = resolve_image(node) if node else None
+            with cols[i % 4]:
+                if path:
+                    st.image(path, width="stretch")
+                    st.caption(zh if lang == "zh" else en)
+                else:
+                    st.caption(L("暂无图片", "No image") + f" · {eid}")
 
     st.markdown(f"#### 🕰️ {t['timeline_title']}")
     items = load_timeline(lang)
@@ -1775,150 +2119,137 @@ def _all_pois(lang: str, index: dict) -> list[dict]:
     return out
 
 
-def _render_custom_route(index: dict, lang: str, t: dict) -> None:
-    st.markdown(f"##### ✨ {t['custom_route']}")
-    st.caption(t["custom_hint"])
+def _card_uri(poi: dict) -> str:
+    """路线卡片背景：优先用 360px 缩略图，减小 HTML 体积。"""
+    path = os.path.join(ASSETS, poi.get("image", ""))
+    if not poi.get("has_image") or not os.path.exists(path):
+        return ""
+    stem = os.path.splitext(os.path.basename(path))[0]
+    thumb = os.path.join(ASSETS, "_thumbs", stem + ".jpg")
+    use = thumb if os.path.exists(thumb) else path
+    try:
+        return "data:image/jpeg;base64," + _b64_file(use, os.path.getmtime(use))
+    except OSError:
+        return ""
 
-    pois = _all_pois(lang, index)
-    if not pois:
-        st.info("content/routes.json 缺失")
-        return
 
-    kinds = [("PERSON", t["interest_person"]), ("PLACE", t["interest_place"]),
-             ("EVENT", t["interest_event"]), ("CONCEPT", t["interest_concept"])]
-    kind_labels = dict(kinds)
-    c1, c2, c3 = st.columns([2, 3, 3])
-    kind = c1.selectbox(t["interest"], [k for k, _ in kinds],
-                        format_func=lambda k: kind_labels[k], key="cr_kind")
-    hours = c2.radio(t["hours"], [2, 3, 4], index=1, horizontal=True,
-                     format_func=lambda h: f"{h} {t['hours_unit']}", key="cr_hours")
-    start = c3.selectbox(
-        t["start_from"], [p["entity"] for p in pois], key="cr_start",
-        format_func=lambda e: display_name(index["nodes"].get(e, {"name": e, "id": e}), lang),
+def _route_card_html(route: dict, index: dict, active: bool, lang: str) -> str:
+    cover = ""
+    if route["pois"]:
+        cover = _card_uri(route["pois"][0])
+    style = f' style="background-image:url({cover})"' if cover else ""
+    tags = "".join(f"<span>{x}</span>" for x in route.get("tags", [])[:3])
+    stops = f'{len(route["pois"])} 站' if lang == "zh" else f'{len(route["pois"])} stops'
+    return (
+        f'<div class="route-card{" active" if active else ""}">'
+        f'<div class="rc-bg"{style}></div><div class="rc-shade"></div>'
+        f'<div class="rc-body">'
+        f'<div class="rc-kicker">{route["duration"]}</div>'
+        f'<div class="rc-title">{route["title"]}</div>'
+        f'<div class="rc-sub">{route["summary"]}</div>'
+        f'<div class="rc-stats"><span>{stops}</span>{tags}</div>'
+        f'</div></div>'
     )
 
-    if st.button(f"✨ {t['generate']}", key="cr_generate"):
-        st.session_state["cr_result"] = custom_route.generate(index, pois, kind, hours, start)
 
-    result = st.session_state.get("cr_result")
-    if not result:
-        return
-
-    items = result["items"]
-    st.markdown(f"**{t['custom_route']}** · {result['hours']} {t['hours_unit']} · "
-                f"{len(items)} {t['pois_count']}")
-    components.html(
-        themed_html(ui_map.map_component([it["poi"] for it in items], lang, height=420,
-                                         route_title=t["custom_route"],
-                                         offline_note=t["map_note"])),
-        height=480, scrolling=False,
+def _brief_html(title: str, summary: str, duration: str, tags: list[str],
+                n_stops: int, lang: str, extra: str = "") -> str:
+    tag_html = "".join(f'<span class="rc-tag">{x}</span>' for x in tags)
+    stops = f"{n_stops} 站" if lang == "zh" else f"{n_stops} stops"
+    return (
+        f'<div class="route-brief"><b>{title}</b>'
+        f'<span class="muted">{duration} · {stops}</span>{tag_html}'
+        f'<span class="muted" style="flex-basis:100%">{summary}</span>{extra}</div>'
     )
 
+
+def _stops_html(items: list[dict], lang: str, with_why: bool = True) -> str:
+    rows = []
     for n, it in enumerate(items, 1):
         poi = it["poi"]
-        with st.container(border=True):
-            cimg, ctxt = st.columns([1, 3])
-            with cimg:
-                if poi["has_image"]:
-                    st.image(os.path.join(ASSETS, poi["image"]), width="stretch")
-                else:
-                    st.caption(t["no_image"])
-            with ctxt:
-                badge = t["custom_match"] if it["match"] else ""
-                st.markdown(f"**{n}. {poi['name']}**" + (f"　`{badge}`" if badge else ""))
-                st.caption(f"{poi['addr']} · {t['custom_hops'].format(n=it['dist'])}")
-                st.markdown(poi["intro"])
+        bits = [poi["addr"]]
+        if n > 1 and it.get("dist") is not None:
+            bits.append(("距上一站 %d 跳" if lang == "zh" else "%d hop(s) from previous") % it["dist"])
+        if it.get("match"):
+            bits.append("主题匹配" if lang == "zh" else "theme match")
+        why = poi["intro"] if with_why else ""
+        rows.append(
+            f'<div class="stop-row"><div class="stop-no">{n}</div><div class="stop-body">'
+            f'<div class="stop-name">{poi["name"]}</div>'
+            f'<div class="stop-meta">{" · ".join(bits)}</div>'
+            f'<div class="stop-why">{why}</div></div></div>'
+        )
+    return '<div class="stop-list">' + "".join(rows) + "</div>"
 
-    with st.expander(f"✅ {t['tasks']}", expanded=True):
-        flags = [st.checkbox(task, key=f"crtask-{result['hours']}-{result['kind']}-{j}")
-                 for j, task in enumerate(custom_route.make_tasks(items, lang))]
 
-    if st.button(f"📄 {t['export_custom']}", key="cr_export"):
-        route = {"id": "custom", "title": t["custom_route"],
-                 "summary": t["custom_hint"],
-                 "duration": f"{result['hours']} {t['hours_unit']}",
-                 "tasks": custom_route.make_tasks(items, lang)}
+def _poi_cards(pois: list[dict], index: dict, lang: str, t: dict,
+               key_prefix: str, items: list[dict] | None = None) -> None:
+    by_id = {it["poi"]["id"]: it for it in (items or [])}
+    for start in range(0, len(pois), 3):
+        cols = st.columns(3)
+        for col, poi in zip(cols, pois[start:start + 3]):
+            it = by_id.get(poi["id"], {})
+            badge = ""
+            if it.get("match"):
+                badge = ('<span class="sv-where">主题匹配</span>' if lang == "zh"
+                         else '<span class="sv-where">theme match</span>')
+            cover = _card_uri(poi)
+            style = f' style="background-image:url({cover})"' if cover else ""
+            with col:
+                st.markdown(
+                    f'<div class="poi-grid-card"><div class="pc-img"{style}></div>'
+                    f'<div class="pc-body"><div class="pc-title">{poi["name"]} {badge}</div>'
+                    f'<div class="pc-addr">{poi["addr"]}</div>'
+                    f'<div class="pc-intro">{poi["intro"]}</div></div></div>',
+                    unsafe_allow_html=True,
+                )
+                if st.button(t["open_entity"], key=f"{key_prefix}-ent-{poi['id']}",
+                             width="stretch"):
+                    st.session_state.messages.append({"role": "user", "content": poi["name"]})
+                    st.session_state.messages.append(
+                        {"role": "assistant", "kind": "entity", "entity_id": poi["entity"]})
+                    goto_page("chat")
+
+
+def _tasks_panel(tasks: list[str], key: str, lang: str, t: dict) -> list[bool]:
+    title = "✅ 研学任务卡" if lang == "zh" else "✅ Field tasks"
+    with st.expander(title, expanded=True):
+        flags = [st.checkbox(task, key=f"{key}-task-{j}") for j, task in enumerate(tasks)]
+        done = sum(1 for f in flags if f)
+        pct = int(round(done / max(len(tasks), 1) * 100))
+        st.markdown(
+            f'<div class="progress-wrap"><div class="plabel"><span>任务进度</span>'
+            f'<span>{done} / {len(tasks)}</span></div>'
+            f'<div class="progress-track"><div class="progress-fill" style="width:{pct}%"></div></div></div>',
+            unsafe_allow_html=True,
+        )
+    return flags
+
+
+def _export_panel(route: dict, pois: list[dict], index: dict, lang: str, t: dict,
+                  flags: list[bool], quiz_rows: list[dict], key: str) -> None:
+    if st.button(f"📄 {t['export']}", key=f"{key}-export", width="stretch"):
         data, fname, mime = report_mod.build_report(
-            route, [it["poi"] for it in items], index["nodes"], lang, flags, [])
-        st.session_state["cr_report"] = (data, fname, mime)
-
-    stored = st.session_state.get("cr_report")
+            route, pois, index["nodes"], lang, flags, quiz_rows)
+        st.session_state[f"{key}-report"] = (data, fname, mime)
+    stored = st.session_state.get(f"{key}-report")
     if stored:
         st.success(t["export_ready"])
         st.download_button(t["download"], data=stored[0], file_name=stored[1],
-                           mime=stored[2], key="cr_download")
+                           mime=stored[2], key=f"{key}-download", width="stretch")
 
 
-def render_study_page(index: dict, lang: str, t: dict) -> None:
-    st.markdown(f"#### 🎒 {t['page_study']}")
-
-    # ---- AI 定制路线（放在最上面，作为默认入口）----
-    _render_custom_route(index, lang, t)
-
-    st.divider()
-    routes = load_routes(lang, index)
-    if not routes:
-        st.info("content/routes.json 缺失")
-        return
-
-    st.markdown(f"##### 🗺️ {t['choose_route']}")
-    labels = [f"{r['title']} · {len(r['pois'])} {t['pois_count']}" for r in routes]
-    idx = st.selectbox(t["choose_route"], range(len(routes)),
-                       format_func=lambda i: labels[i], key="route_sel",
-                       label_visibility="collapsed")
-    route = routes[idx]
-    st.markdown(f"**{route['summary']}**")
-    st.caption(f"{t['duration']}：{route['duration']}")
-
-    components.html(
-        themed_html(ui_map.map_component(route["pois"], lang, height=480,
-                                         route_title=route["title"],
-                                         offline_note=t["map_note"])),
-        height=540, scrolling=False,
-    )
-
-    # ---- 点位讲解 ----
-    st.markdown(f"#### 📍 {t['poi_list']}")
-    for n, poi in enumerate(route["pois"], 1):
-        with st.container(border=True):
-            cimg, ctxt = st.columns([1, 3])
-            with cimg:
-                image_path = os.path.join(ASSETS, poi["image"])
-                if poi["has_image"]:
-                    st.image(image_path, width="stretch")
-                else:
-                    st.caption(t["no_image"])
-            with ctxt:
-                st.markdown(f"**{n}. {poi['name']}**")
-                st.caption(poi["addr"])
-                st.markdown(poi["intro"])
-                if st.button(t["open_entity"], key=f"poi-{route['id']}-{poi['id']}"):
-                    st.session_state.messages.append(
-                        {"role": "user", "content": poi["name"]})
-                    st.session_state.messages.append(
-                        {"role": "assistant", "kind": "entity",
-                         "entity_id": poi["entity"]})
-                    goto_page("chat")
-
-    # ---- 任务卡 ----
-    with st.expander(f"✅ {t['tasks']}", expanded=True):
-        done_flags = []
-        for j, task in enumerate(route["tasks"]):
-            done_flags.append(st.checkbox(task, key=f"task-{route['id']}-{j}"))
-
-    # ---- 随堂测评 ----
+def _quiz_panel(route: dict, index: dict, lang: str, t: dict) -> list[dict]:
     st.markdown(f"#### 📝 {t['quiz']}")
     quiz = load_quiz(lang)
     if not quiz:
         st.info("content/quiz.json 缺失")
-        return
-
+        return []
     quiz_key = f"quiz-{route['id']}-{lang}"
     picked_ids = st.session_state.get(quiz_key)
     if not picked_ids:
         picked_ids = [q["id"] for q in random.sample(quiz, min(5, len(quiz)))]
         st.session_state[quiz_key] = picked_ids
-
     by_id = {q["id"]: q for q in quiz}
     selected = [by_id[i] for i in picked_ids if i in by_id]
 
@@ -1935,7 +2266,7 @@ def render_study_page(index: dict, lang: str, t: dict) -> None:
             format_func=lambda k, opts=q["options"]: opts[k],
         ))
 
-    if st.button(t["quiz_submit"], key=f"submit-{route['id']}"):
+    if st.button(t["quiz_submit"], key=f"submit-{route['id']}", width="stretch"):
         if any(a is None for a in answers):
             st.warning(t["quiz_need_all"])
         else:
@@ -1950,41 +2281,256 @@ def render_study_page(index: dict, lang: str, t: dict) -> None:
             st.session_state[f"quizres-{route['id']}"] = rows
 
     result = st.session_state.get(f"quizres-{route['id']}")
-    score = 0
     if result:
         score = sum(1 for r in result if r["ok"])
-        st.markdown(f"**{t['quiz_score']}：{score} / {len(result)}**")
+        pct = int(score / max(len(result), 1) * 100)
+        st.markdown(
+            f'<div class="progress-wrap"><div class="plabel">'
+            f'<span>{t["quiz_score"]}</span><span>{score} / {len(result)}</span></div>'
+            f'<div class="progress-track"><div class="progress-fill" style="width:{pct}%"></div></div></div>',
+            unsafe_allow_html=True,
+        )
         if score == len(result):
             st.success(t["quiz_all_right"])
         for n, row in enumerate(result, 1):
             mark = "✅" if row["ok"] else "❌"
             st.markdown(f"{mark} **{n}. {row['q']}**")
-            st.caption(f"{t['quiz_score']}：{row['chosen']} ｜ "
-                       f"{t['correct']}：{row['answer']}")
+            st.caption(f"{t['quiz_score']}：{row['chosen']} ｜ {t['correct']}：{row['answer']}")
             if row["explain"]:
                 st.caption(row["explain"])
+    return result or []
 
-    # ---- 导出小结 ----
+
+def _route_detail(route: dict, pois: list[dict], index: dict, lang: str, t: dict,
+                  key: str, items: list[dict] | None = None) -> None:
+    tags = route.get("tags", [])
+    st.markdown(_brief_html(route["title"], route["summary"], route["duration"],
+                            tags, len(pois), lang), unsafe_allow_html=True)
+
+    c_map, c_list = st.columns([1.45, 1])
+    with c_map:
+        map_pois = [p for p in pois if p.get("x") is not None and p.get("y") is not None]
+        if map_pois:
+            campus = route.get("campus") or map_pois[0].get("campus") or "chengnan"
+            map_name = "城南校区 · 手绘导览图" if campus == "chengnan" else "东方红校区 · 手绘导览图"
+            if lang == "en":
+                map_name = "Chengnan Campus · illustrated map" if campus == "chengnan" \
+                    else "Dongfanghong Campus · illustrated map"
+            payload = [dict(p, img=_card_uri(p)) for p in map_pois]
+            components.html(
+                ui_campus_map.map_component(
+                    payload, map_uri("chengnan_route" if campus == "chengnan" else "dongfanghong_route"),
+                    map_name, height=500, route_title=route["title"],
+                    note=t["map_note"], lang=lang, theme=current_theme(),
+                ),
+                height=560, scrolling=False,
+            )
+        else:
+            components.html(
+                themed_html(ui_map.map_component(pois, lang, height=440,
+                                                 route_title=route["title"],
+                                                 offline_note=t["map_note"])),
+                height=500, scrolling=False,
+            )
+    with c_list:
+        st.markdown(f"**{'行程时间轴' if lang == 'zh' else 'Itinerary'}**")
+        st.markdown(_stops_html(items or [{"poi": p} for p in pois], lang),
+                    unsafe_allow_html=True)
+
+    st.markdown(f"#### 📍 {t['poi_list']}")
+    _poi_cards(pois, index, lang, t, key, items)
+
+    flags = _tasks_panel(route.get("tasks", []), key, lang, t)
+    quiz_rows = _quiz_panel(route, index, lang, t)
     st.divider()
-    if st.button(t["export"], key=f"export-{route['id']}"):
-        rows = result or []
-        data, fname, mime = report_mod.build_report(
-            route, route["pois"], index["nodes"], lang, done_flags, rows)
-        st.session_state[f"report-{route['id']}"] = (data, fname, mime)
+    _export_panel(route, pois, index, lang, t, flags, quiz_rows, key)
 
-    stored = st.session_state.get(f"report-{route['id']}")
-    if stored:
-        st.success(t["export_ready"])
-        st.download_button(t["download"], data=stored[0], file_name=stored[1],
-                           mime=stored[2], key=f"dl-{route['id']}")
+
+def _render_preset_routes(index: dict, lang: str, t: dict) -> None:
+    routes = load_routes(lang, index)
+    if not routes:
+        st.info("content/routes.json 缺失 / missing")
+        return
+    st.markdown(f"#### 🗺️ {t['choose_route']}")
+    current = st.session_state.get("study_route_id")
+    if current not in {r["id"] for r in routes}:
+        current = routes[0]["id"]
+        st.session_state["study_route_id"] = current
+
+    for start in range(0, len(routes), 3):
+        cols = st.columns(3)
+        for col, route in zip(cols, routes[start:start + 3]):
+            with col:
+                st.markdown(_route_card_html(route, index, route["id"] == current, lang),
+                            unsafe_allow_html=True)
+                label = ("已选择" if route["id"] == current else "进入路线") if lang == "zh" \
+                    else ("Selected" if route["id"] == current else "Open route")
+                if st.button(label, key=f"pick-{route['id']}", width="stretch",
+                             disabled=route["id"] == current):
+                    st.session_state["study_route_id"] = route["id"]
+                    st.rerun()
+
+    route = next(r for r in routes if r["id"] == current)
+    _route_detail(route, route["pois"], index, lang, t, f"preset-{route['id']}")
+
+
+def _render_custom_route(index: dict, lang: str, t: dict) -> None:
+    st.markdown(f"#### ✨ {t['custom_route']}")
+    st.caption(t["custom_hint"])
+    all_pois = _all_pois(lang, index)
+    if not all_pois:
+        st.info("content/routes.json 缺失")
+        return
+
+    campus_labels = {"chengnan": "🏛️ 城南校区", "dongfanghong": "🌳 东方红校区"}
+    campus = st.radio(
+        "校区" if lang == "zh" else "Campus", list(campus_labels), horizontal=True,
+        format_func=lambda c: campus_labels[c], key="cr_campus",
+        label_visibility="collapsed",
+    )
+    pois = [p for p in all_pois if p.get("campus") == campus]
+    if not pois:
+        st.info("这个校区还没有可排的点位。")
+        return
+
+    kinds = [("PERSON", "👤 " + t["interest_person"]),
+             ("PLACE", "🏛️ " + t["interest_place"]),
+             ("EVENT", "📌 " + t["interest_event"]),
+             ("CONCEPT", "💡 " + t["interest_concept"])]
+    kind_labels = dict(kinds)
+
+    c1, c2, c3 = st.columns(3)
+    with c1:
+        st.markdown(
+            f'<div class="step-card"><div class="step-no">STEP 01</div>'
+            f'<h4>{t["interest"]}</h4><p>选一个你最想追的主题，点位会按 themes 标签匹配。</p></div>',
+            unsafe_allow_html=True)
+        kind = st.radio(t["interest"], [k for k, _ in kinds], horizontal=True,
+                        format_func=lambda k: kind_labels[k], key="cr_kind",
+                        label_visibility="collapsed")
+    with c2:
+        st.markdown(
+            f'<div class="step-card"><div class="step-no">STEP 02</div>'
+            f'<h4>{t["hours"]}</h4><p>2 小时 3 站，3 小时 4 站，4 小时 6 站。</p></div>',
+            unsafe_allow_html=True)
+        hours = st.radio(t["hours"], [2, 3, 4], index=1, horizontal=True,
+                         format_func=lambda h: f"{h} {t['hours_unit']}", key="cr_hours",
+                         label_visibility="collapsed")
+    with c3:
+        st.markdown(
+            f'<div class="step-card"><div class="step-no">STEP 03</div>'
+            f'<h4>{t["start_from"]}</h4><p>从你所在的位置出发，减少折返。</p></div>',
+            unsafe_allow_html=True)
+        start = st.selectbox(
+            t["start_from"], [p["entity"] for p in pois], key=f"cr_start_{campus}",
+            format_func=lambda e: display_name(index["nodes"].get(e, {"name": e, "id": e}), lang),
+            label_visibility="collapsed",
+        )
+
+    if st.button(f"✨ {t['generate']}", key="cr_generate", width="stretch"):
+        st.session_state["cr_result"] = custom_route.generate(index, pois, kind, hours, start)
+        st.session_state["cr_result"]["campus"] = campus
+        st.session_state["cr_params"] = (campus, kind, hours, start)
+
+    result = st.session_state.get("cr_result")
+    if not result:
+        st.markdown(
+            '<div class="plan-hint">选好主题、时长和起点后，点上面的按钮生成路线；'
+            '系统会给出地图、时间轴、逐站讲解、任务卡和 docx 小结。</div>',
+            unsafe_allow_html=True,
+        )
+        st.markdown("#### 算法怎么排")
+        a1, a2, a3 = st.columns(3)
+        with a1:
+            st.markdown(
+                '<div class="step-card"><div class="step-no">MATCH</div><h4>① 主题匹配</h4>'
+                '<p>点位的 themes 标签与兴趣主题一致时加 1.5 分；'
+                '例如「人物」主题优先选与毛泽东关系密集的点位。</p></div>',
+                unsafe_allow_html=True)
+        with a2:
+            st.markdown(
+                '<div class="step-card"><div class="step-no">DISTANCE</div><h4>② BFS 距离</h4>'
+                '<p>用 C 内核的 find_path 算「上一站 → 候选点」的最短跳数，'
+                '跳数越少分越高，避免在校园里来回折返。</p></div>',
+                unsafe_allow_html=True)
+        with a3:
+            st.markdown(
+                '<div class="step-card"><div class="step-no">ORDER</div><h4>③ 贪心排序</h4>'
+                '<p>从起点开始每次挑「主题更契合、跳数更小」的下一点，'
+                '2 / 3 / 4 小时分别截取 3 / 4 / 6 站。</p></div>',
+                unsafe_allow_html=True)
+        st.markdown(f"#### 可用的 {len(pois)} 个点位")
+        icons = {"PLACE": "🏛️", "EVENT": "📌", "PERSON": "👤", "CONCEPT": "💡"}
+        chips = "".join(
+            f'<span class="poi-chip">{icons.get((p.get("themes") or ["PLACE"])[0], "📍")} '
+            f'{p["name"]}</span>' for p in pois)
+        st.markdown(f'<div class="poi-chips">{chips}</div>', unsafe_allow_html=True)
+        return
+    if st.session_state.get("cr_params") != (campus, kind, hours, start):
+        st.warning("参数已修改，请重新生成路线。" if lang == "zh"
+                   else "Parameters changed — generate again.")
+        return
+
+    items = result["items"]
+    kind_name = kind_labels.get(result["kind"], result["kind"])
+    campus_name = campus_labels.get(campus, campus)
+    if lang == "zh":
+        summary = (f"按「{kind_name}」主题排的 {result['hours']} 小时路线："
+                   f"主题匹配的点位优先，再按知识图谱跳数就近排序，减少折返。")
+    else:
+        summary = (f"A {result['hours']}-hour route for the “{kind_name}” theme: "
+                   f"theme-matched stops first, then ordered by graph hop distance to reduce backtracking.")
+    route = {
+        "id": "custom", "title": t["custom_route"], "summary": summary,
+        "duration": f"{result['hours']} {t['hours_unit']}",
+        "tags": [campus_name, kind_name],
+        "tasks": custom_route.make_tasks(items, lang),
+        "campus": result.get("campus", campus),
+    }
+    _route_detail(route, [it["poi"] for it in items], index, lang, t,
+                  f"custom-{result['hours']}-{result['kind']}", items)
+
+
+def render_study_page(index: dict, lang: str, t: dict) -> None:
+    n_nodes = len(index["nodes"])
+    n_edges = len(index["kg"]["edges"])
+    n_routes = len(load_routes(lang, index))
+    n_pois = len(_all_pois(lang, index))
+    if lang == "zh":
+        lead = (f"把 {n_nodes} 个实体、{n_edges} 条关系变成一条走得通的路线："
+                f"先选主题，再按时长裁站，最后导出研学小结。")
+        meta = [f"{n_routes} 条主题路线", f"{n_pois} 个点位", "2 / 3 / 4 小时", "docx 导出"]
+    else:
+        lead = (f"Turn {n_nodes} entities and {n_edges} relations into a walkable route: "
+                f"pick a theme, fit the duration, export a report.")
+        meta = [f"{n_routes} route themes", f"{n_pois} stops", "2 / 3 / 4 hours", "docx export"]
+    st.markdown(
+        f'<div class="study-hero"><div class="eyebrow">STUDY ROUTE STUDIO</div>'
+        f'<h2>🎒 {t["page_study"]}</h2><p>{lead}</p>'
+        f'<div class="hero-meta">' + "".join(f"<span>{m}</span>" for m in meta) +
+        '</div></div>',
+        unsafe_allow_html=True,
+    )
+
+    mode = st.radio(
+        "mode", ["preset", "custom"], horizontal=True,
+        format_func=lambda m: ("🗺️ 经典路线" if m == "preset" else "✨ AI 定制") if lang == "zh"
+        else ("🗺️ Curated routes" if m == "preset" else "✨ AI planner"),
+        key="study_mode", label_visibility="collapsed",
+    )
+    if mode == "custom":
+        _render_custom_route(index, lang, t)
+    else:
+        _render_preset_routes(index, lang, t)
 
 
 # ============================================================
 # 5. 主流程
 # ============================================================
 # 主题要先于样式注入确定下来，否则注入的还是上一次的主题
+# 默认亮色：第一次打开就是 ☀️ 亮色模式（想要深色在侧边栏「主题」里切换）
 if "theme" not in st.session_state:
-    st.session_state.theme = THEME_DARK
+    st.session_state.theme = THEME_LIGHT
 
 inject_css()
 

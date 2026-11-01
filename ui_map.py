@@ -80,6 +80,18 @@ def map_component(pois: list[dict], lang: str, height: int = 520,
 <style>
   {css}
   .leaflet-container {{ background:#14080a; font-family:"Microsoft YaHei",sans-serif; }}
+  .leaflet-container.map-offline {{
+      background:
+        radial-gradient(circle at 30% 20%, rgba(232,192,125,.10), transparent 45%),
+        repeating-linear-gradient(0deg, rgba(232,192,125,.05) 0 1px, transparent 1px 44px),
+        repeating-linear-gradient(90deg, rgba(232,192,125,.05) 0 1px, transparent 1px 44px),
+        #14080a !important;
+  }}
+  .leaflet-container.map-offline::before {{
+      content: "离线示意 · 第一师范城南校区"; position: absolute; left: 12px; bottom: 12px;
+      z-index: 350; font-size: 12px; color: rgba(232,192,125,.72); letter-spacing: .08em;
+      pointer-events: none;
+  }}
   .leaflet-popup-content-wrapper {{ background:#1d0f10; color:#f5ebe6;
       border:1px solid rgba(232,192,125,.4); border-radius:12px; }}
   .leaflet-popup-tip {{ background:#1d0f10; }}
@@ -91,6 +103,11 @@ def map_component(pois: list[dict], lang: str, height: int = 520,
   .poi-num {{ background:#e8c07d; color:#1a0b0c; border-radius:50%; width:26px; height:26px;
       display:flex; align-items:center; justify-content:center; font:600 13px/1 "Microsoft YaHei",sans-serif;
       border:2px solid rgba(20,8,10,.8); box-shadow:0 2px 6px rgba(0,0,0,.5); }}
+  .leaflet-control-zoom a {{ background:#1d0f10 !important; color:#e8c07d !important;
+      border-color:rgba(232,192,125,.35) !important; }}
+  .leaflet-control-zoom a:hover {{ background:#2c1517 !important; color:#fff3d8 !important; }}
+  .leaflet-control-attribution {{ background:rgba(20,8,10,.72) !important; color:#a08b83 !important; }}
+  .leaflet-control-attribution a {{ color:#e8c07d !important; }}
   .map-foot {{ font-size:12px; color:#a08b83; margin-top:6px; }}
 </style>
 <script>
@@ -101,10 +118,18 @@ def map_component(pois: list[dict], lang: str, height: int = 520,
   const POIS = {payload};
   const map = L.map('study-map', {{ zoomControl: true, attributionControl: true }})
                .setView([POIS[0].lat, POIS[0].lng], 17);
-  L.tileLayer('https://{{s}}.tile.openstreetmap.org/{{z}}/{{x}}/{{y}}.png', {{
+  const tiles = L.tileLayer('https://{{s}}.tile.openstreetmap.org/{{z}}/{{x}}/{{y}}.png', {{
     maxZoom: 19,
     attribution: '&copy; OpenStreetMap'
   }}).addTo(map);
+  let tileErrors = 0;
+  const mapBox = map.getContainer();
+  mapBox.classList.add('map-offline');   // 先按离线样式渲染，瓦片成功后再去掉
+  tiles.on('tileload', () => mapBox.classList.remove('map-offline'));
+  tiles.on('tileerror', () => {{
+    tileErrors += 1;
+    if (tileErrors > 1) mapBox.classList.add('map-offline');
+  }});
 
   const pts = [];
   POIS.forEach(p => {{

@@ -1,155 +1,592 @@
 {
-  "note": "坐标为近似位置，仅用于研学导览示意；同一校区内的点位按方位做了小幅偏移，避免地标重叠。",
-  "pois": {
-    "school": {
-      "entity": "school",
-      "name": "湖南省立第一师范学校旧址",
-      "name_en": "Site of Hunan First Normal School",
-      "addr": "长沙市天心区书院路 356 号",
-      "addr_en": "356 Shuyuan Road, Tianxin District, Changsha",
-      "lat": 28.1786,
-      "lng": 112.9764,
-      "intro": "一师核心校区，前身是南宋城南书院。毛泽东在此求学、执教共八年，校训「实事求是」影响了他的一生。",
-      "intro_en": "The core campus of Hunan First Normal School, whose predecessor was Chengnan Academy of the Southern Song. Mao studied and taught here for eight years; the motto 'seeking truth from facts' shaped his life."
-    },
-    "class8": {
-      "entity": "class8",
-      "name": "第八班教室",
-      "name_en": "Classroom of Class Eight",
-      "addr": "第一师范旧址教学楼二层（第八班教室）",
-      "addr_en": "Second floor, teaching building of the school site",
-      "lat": 28.17872,
-      "lng": 112.9765,
-      "intro": "毛泽东在一师求学时的固定教室，第一行第四座是他的座位。",
-      "intro_en": "Mao's fixed classroom; the fourth seat in the first row was his."
-    },
-    "well": {
-      "entity": "well",
-      "name": "一师水井",
-      "name_en": "The Well on Campus",
-      "addr": "第一师范旧址院内水井",
-      "addr_en": "In the courtyard of the school site",
-      "lat": 28.17866,
-      "lng": 112.97626,
-      "intro": "毛泽东常年在此进行冷水浴，四季不断，是他「野蛮其体魄」的具体实践。",
-      "intro_en": "Mao took cold-water baths here all year round — a concrete practice of 'toughening the body'."
-    },
-    "pavilion": {
-      "entity": "pavilion",
-      "name": "君子亭",
-      "name_en": "Junzi Pavilion",
-      "addr": "第一师范旧址校园内",
-      "addr_en": "On the campus of the school site",
-      "lat": 28.17878,
-      "lng": 112.97634,
-      "intro": "毛泽东常在此读书，并与同学探讨国家大事。",
-      "intro_en": "Mao often read here and discussed national affairs with classmates."
-    },
-    "hall": {
-      "entity": "hall",
-      "name": "大礼堂",
-      "name_en": "Assembly Hall",
-      "addr": "第一师范旧址校园内",
-      "addr_en": "On the campus of the school site",
-      "lat": 28.1785,
-      "lng": 112.97652,
-      "intro": "校内举行集会、演讲及学术活动的重要场所。",
-      "intro_en": "An important venue for assemblies, speeches and academic activities."
-    },
-    "readingroom": {
-      "entity": "readingroom",
-      "name": "阅报室",
-      "name_en": "Newspaper Reading Room",
-      "addr": "第一师范旧址校园内",
-      "addr_en": "On the campus of the school site",
-      "lat": 28.17844,
-      "lng": 112.9763,
-      "intro": "毛泽东在一师期间每天必去的地方，在此读报、关心天下时政。",
-      "intro_en": "Where Mao went every day to read newspapers and follow current affairs."
-    },
-    "chengnan": {
-      "entity": "chengnan",
-      "name": "城南书院",
-      "name_en": "Chengnan Academy",
-      "addr": "长沙市天心区（第一师范旧址内）",
-      "addr_en": "Tianxin District, Changsha (within the school site)",
-      "lat": 28.1784,
-      "lng": 112.9766,
-      "intro": "一师前身，南宋始建，体现「千年学府、百年师范」的湖湘文脉。",
-      "intro_en": "The school's predecessor, founded in the Southern Song, embodying a thousand-year academy and a century-old normal school."
-    },
-    "xinmin": {
-      "entity": "xinmin",
-      "name": "新民学会成立会旧址",
-      "name_en": "Site of the Founding of the New People's Study Society",
-      "addr": "长沙市岳麓区溁湾镇刘家台子（蔡和森故居）",
-      "addr_en": "Liujiataizi, Yingwan Town, Yuelu District, Changsha",
-      "lat": 28.1932,
-      "lng": 112.9345,
-      "intro": "1918 年 4 月，毛泽东、蔡和森、萧子升等在此发起成立新民学会，萧子升任首任总干事，何叔衡是最年长的会员。",
-      "intro_en": "In April 1918 Mao, Cai Hesen and Xiao Zisheng founded the New People's Study Society here; Xiao was its first secretary-general and He Shuheng its oldest member."
-    }
+ "note": "坐标为近似位置，仅用于研学导览示意；同一校区内的点位按方位做了小幅偏移，避免地标重叠。新增点位与照片来自团队 2026-10-31 城南校区实拍。",
+ "pois": {
+  "school": {
+   "entity": "school",
+   "name": "湖南省立第一师范学校旧址",
+   "name_en": "Site of Hunan First Normal School",
+   "addr": "长沙市天心区书院路 356 号",
+   "addr_en": "356 Shuyuan Road, Tianxin District, Changsha",
+   "lat": 28.1786,
+   "lng": 112.9764,
+   "intro": "一师核心校区，前身是南宋城南书院。毛泽东在此求学、执教共八年，校训「实事求是」影响了他的一生。",
+   "intro_en": "The core campus of Hunan First Normal School, whose predecessor was Chengnan Academy of the Southern Song. Mao studied and taught here for eight years; the motto 'seeking truth from facts' shaped his life.",
+   "themes": [
+    "PLACE",
+    "PERSON",
+    "EVENT",
+    "CONCEPT"
+   ],
+   "primary": "PLACE",
+   "x": 0.579,
+   "y": 0.896,
+   "campus": "chengnan"
   },
-  "routes": [
-    {
-      "id": "classic",
-      "title": "半天经典线",
-      "title_en": "Half-day classic route",
-      "duration": "约 2 小时",
-      "duration_en": "about 2 hours",
-      "summary": "只走校本部，把「教室 — 水井 — 阅报室」串起来，看懂毛泽东在一师的日常。",
-      "summary_en": "Stay on campus and link the classroom, the well and the reading room to see Mao's daily life at the school.",
-      "pois": ["school", "class8", "well", "readingroom"],
-      "tasks": [
-        "在第八班教室找到毛泽东的座位（第一行第四座），拍一张照片。",
-        "在水井边说出「文明其精神，野蛮其体魄」的出处。",
-        "在阅报室记录一条 1919 年前后的时政新闻标题。"
-      ],
-      "tasks_en": [
-        "Find Mao's seat in the Class Eight classroom (fourth seat, first row) and take a photo.",
-        "Stand by the well and explain where 'civilise the spirit, toughen the body' comes from.",
-        "Write down one news headline from around 1919 at the reading room."
-      ]
-    },
-    {
-      "id": "deep",
-      "title": "一日深度线",
-      "title_en": "Full-day in-depth route",
-      "duration": "约 4 小时",
-      "duration_en": "about 4 hours",
-      "summary": "校本部全部点位 + 城南书院，从建筑格局读到湖湘文脉。",
-      "summary_en": "All campus points plus Chengnan Academy, reading Huxiang culture from the buildings themselves.",
-      "pois": ["school", "chengnan", "class8", "hall", "pavilion", "well", "readingroom"],
-      "tasks": [
-        "按建造年代给城南书院、大礼堂、第八班教室排序。",
-        "说出君子亭为什么适合「读书 + 议政」这两件事。",
-        "在校内找到「实事求是」相关的题刻或陈列。"
-      ],
-      "tasks_en": [
-        "Order Chengnan Academy, the assembly hall and the Class Eight classroom by age.",
-        "Explain why the Junzi Pavilion suited both reading and discussing state affairs.",
-        "Find an inscription or display related to 'seeking truth from facts' on campus."
-      ]
-    },
-    {
-      "id": "spirit",
-      "title": "精神传承线",
-      "title_en": "Spirit and legacy route",
-      "duration": "约 3 小时",
-      "duration_en": "about 3 hours",
-      "summary": "从校训到新民学会：看一师如何把「求学」变成「救国」。",
-      "summary_en": "From the school motto to the New People's Study Society: how study became a way of saving the nation.",
-      "pois": ["school", "pavilion", "readingroom", "xinmin"],
-      "tasks": [
-        "在旧址找到校训「实事求是」的出处说明。",
-        "对比「读有字之书」和「读无字之书」各指什么。",
-        "在新民学会旧址说出首任总干事与最年长会员分别是谁。"
-      ],
-      "tasks_en": [
-        "Find where the motto 'seeking truth from facts' comes from.",
-        "Compare 'reading books with words' and 'reading the book without words'.",
-        "At the Xinmin site, name its first secretary-general and its oldest member."
-      ]
-    }
-  ]
+  "class8": {
+   "entity": "class8",
+   "name": "第八班教室",
+   "name_en": "Classroom of Class Eight",
+   "addr": "第一师范旧址教学楼二层（第八班教室）",
+   "addr_en": "Second floor, teaching building of the school site",
+   "lat": 28.17872,
+   "lng": 112.9765,
+   "intro": "毛泽东在一师求学时的固定教室，第一行第四座是他的座位。",
+   "intro_en": "Mao's fixed classroom; the fourth seat in the first row was his.",
+   "themes": [
+    "PLACE",
+    "PERSON"
+   ],
+   "primary": "PERSON",
+   "x": 0.547,
+   "y": 0.698,
+   "campus": "chengnan"
+  },
+  "well": {
+   "entity": "well",
+   "name": "一师水井",
+   "name_en": "The Well on Campus",
+   "addr": "第一师范旧址院内水井",
+   "addr_en": "In the courtyard of the school site",
+   "lat": 28.17866,
+   "lng": 112.97626,
+   "intro": "毛泽东常年在此进行冷水浴，四季不断，是他「野蛮其体魄」的具体实践。",
+   "intro_en": "Mao took cold-water baths here all year round — a concrete practice of 'toughening the body'.",
+   "themes": [
+    "PLACE",
+    "PERSON",
+    "CONCEPT"
+   ],
+   "primary": "CONCEPT",
+   "x": 0.274,
+   "y": 0.882,
+   "campus": "chengnan"
+  },
+  "pavilion": {
+   "entity": "pavilion",
+   "name": "君子亭",
+   "name_en": "Junzi Pavilion",
+   "addr": "第一师范旧址校园内",
+   "addr_en": "On the campus of the school site",
+   "lat": 28.17878,
+   "lng": 112.97634,
+   "intro": "毛泽东常在此读书，并与同学探讨国家大事。",
+   "intro_en": "Mao often read here and discussed national affairs with classmates.",
+   "themes": [
+    "PLACE",
+    "PERSON"
+   ],
+   "primary": "PLACE",
+   "x": 0.25,
+   "y": 0.65,
+   "campus": "chengnan"
+  },
+  "hall": {
+   "entity": "hall",
+   "name": "大礼堂",
+   "name_en": "Assembly Hall",
+   "addr": "第一师范旧址校园内",
+   "addr_en": "On the campus of the school site",
+   "lat": 28.1785,
+   "lng": 112.97652,
+   "intro": "校内举行集会、演讲及学术活动的重要场所。",
+   "intro_en": "An important venue for assemblies, speeches and academic activities.",
+   "themes": [
+    "PLACE",
+    "EVENT"
+   ],
+   "primary": "EVENT",
+   "x": 0.705,
+   "y": 0.776,
+   "campus": "chengnan"
+  },
+  "readingroom": {
+   "entity": "readingroom",
+   "name": "阅报室",
+   "name_en": "Newspaper Reading Room",
+   "addr": "第一师范旧址校园内",
+   "addr_en": "On the campus of the school site",
+   "lat": 28.17844,
+   "lng": 112.9763,
+   "intro": "毛泽东在一师期间每天必去的地方，在此读报、关心天下时政。",
+   "intro_en": "Where Mao went every day to read newspapers and follow current affairs.",
+   "themes": [
+    "PLACE",
+    "PERSON",
+    "CONCEPT"
+   ],
+   "primary": "PERSON",
+   "x": 0.383,
+   "y": 0.698,
+   "campus": "chengnan"
+  },
+  "chengnan": {
+   "entity": "chengnan",
+   "name": "城南书院",
+   "name_en": "Chengnan Academy",
+   "addr": "长沙市天心区（第一师范旧址内）",
+   "addr_en": "Tianxin District, Changsha (within the school site)",
+   "lat": 28.1784,
+   "lng": 112.9766,
+   "intro": "一师前身，南宋始建，体现「千年学府、百年师范」的湖湘文脉。",
+   "intro_en": "The school's predecessor, founded in the Southern Song, embodying a thousand-year academy and a century-old normal school.",
+   "themes": [
+    "PLACE",
+    "CONCEPT"
+   ],
+   "primary": "CONCEPT",
+   "x": 0.547,
+   "y": 0.67,
+   "campus": "chengnan"
+  },
+  "xinmin": {
+   "entity": "xinmin",
+   "name": "新民学会成立会旧址",
+   "name_en": "Site of the Founding of the New People's Study Society",
+   "addr": "长沙市岳麓区溁湾镇刘家台子（蔡和森故居）",
+   "addr_en": "Liujiataizi, Yingwan Town, Yuelu District, Changsha",
+   "lat": 28.1932,
+   "lng": 112.9345,
+   "intro": "1918 年 4 月，毛泽东、蔡和森、萧子升等在此发起成立新民学会，萧子升任首任总干事，何叔衡是最年长的会员。",
+   "intro_en": "In April 1918 Mao, Cai Hesen and Xiao Zisheng founded the New People's Study Society here; Xiao was its first secretary-general and He Shuheng its oldest member.",
+   "themes": [
+    "EVENT",
+    "PLACE",
+    "PERSON"
+   ],
+   "primary": "EVENT",
+   "campus": "outside"
+  },
+  "paifang": {
+   "entity": "paifang",
+   "name": "城南书院石坊",
+   "name_en": "Chengnan Academy Stone Archway",
+   "addr": "第一师范城南书院校区北门（城南书院石坊）",
+   "addr_en": "North gate of the Chengnan campus (Chengnan Academy archway)",
+   "lat": 28.17892,
+   "lng": 112.97608,
+   "intro": "石坊门额题「城南书院」，是追溯一师前身千年文脉的起点；穿过石坊即进入校区。",
+   "intro_en": "The archway is inscribed \"Chengnan Academy\" — the starting point for tracing the school's thousand-year lineage.",
+   "themes": [
+    "PLACE",
+    "CONCEPT"
+   ],
+   "primary": "PLACE",
+   "x": 0.481,
+   "y": 0.16,
+   "campus": "chengnan"
+  },
+  "statue": {
+   "entity": "statue",
+   "name": "毛泽东铜像广场",
+   "name_en": "Mao Zedong Statue Square",
+   "addr": "第一师范城南书院校区 · 毛泽东铜像广场",
+   "addr_en": "Mao Zedong Statue Square, Chengnan campus",
+   "lat": 28.17895,
+   "lng": 112.9763,
+   "intro": "青年毛泽东铜像立于广场中央，是研学集合、献花与合影的主要场所。",
+   "intro_en": "A bronze statue of the young Mao stands at the centre of the square — the main meeting point for study groups.",
+   "themes": [
+    "PERSON",
+    "PLACE"
+   ],
+   "primary": "PERSON",
+   "x": 0.318,
+   "y": 0.755,
+   "campus": "chengnan"
+  },
+  "dorm8": {
+   "entity": "dorm8",
+   "name": "第八班寝室",
+   "name_en": "Dormitory of Class Eight",
+   "addr": "第一师范城南书院校区 · 第八班寝室",
+   "addr_en": "Dormitory of Class Eight, Chengnan campus",
+   "lat": 28.1788,
+   "lng": 112.9766,
+   "intro": "通铺复原陈列，毛泽东的床位在靠窗一侧；「三不谈」的故事就发生在这里。",
+   "intro_en": "The restored communal dormitory; Mao's bed was by the window, where the 'three no-talks' story took place.",
+   "themes": [
+    "PERSON",
+    "PLACE"
+   ],
+   "primary": "PERSON",
+   "x": 0.307,
+   "y": 0.16,
+   "campus": "chengnan"
+  },
+  "courtyard": {
+   "entity": "courtyard",
+   "name": "校园中庭",
+   "name_en": "Campus Courtyard",
+   "addr": "第一师范城南书院校区 · 校园中庭",
+   "addr_en": "Campus courtyard, Chengnan campus",
+   "lat": 28.17863,
+   "lng": 112.9764,
+   "intro": "「名师熏陶，益友砥砺」铜像群，再现毛泽东与师友切磋问学的场景。",
+   "intro_en": "The sculpture group \"Nurtured by great teachers, sharpened by good friends\" recreates Mao studying with teachers and classmates.",
+   "themes": [
+    "PERSON",
+    "CONCEPT",
+    "PLACE"
+   ],
+   "primary": "CONCEPT",
+   "x": 0.394,
+   "y": 0.811,
+   "campus": "chengnan"
+  },
+  "playground": {
+   "entity": "playground",
+   "name": "校园体育锻炼场",
+   "name_en": "Campus Exercise Ground",
+   "addr": "第一师范城南书院校区 · 体育锻炼场",
+   "addr_en": "Campus exercise ground, Chengnan campus",
+   "lat": 28.17855,
+   "lng": 112.9762,
+   "intro": "木制单杠与沙坑保留至今，是毛泽东「野蛮其体魄」的现场证据。",
+   "intro_en": "Wooden horizontal bars and a sand pit survive here — on-site evidence of Mao's \"toughening the body\".",
+   "themes": [
+    "PERSON",
+    "EVENT",
+    "PLACE"
+   ],
+   "primary": "EVENT",
+   "x": 0.754,
+   "y": 0.472,
+   "campus": "chengnan"
+  },
+  "nightclass_site": {
+   "entity": "nightclass_site",
+   "name": "工人夜学旧址",
+   "name_en": "Night School for Workers Site",
+   "addr": "第一师范城南书院校区 · 工人夜学旧址",
+   "addr_en": "Night School for Workers site, Chengnan campus",
+   "lat": 28.17834,
+   "lng": 112.97678,
+   "intro": "门额「工人夜学」与展板记录 1917 年毛泽东为工人免费授课的历史。",
+   "intro_en": "The door plaque and exhibition boards record Mao teaching workers free of charge in 1917.",
+   "themes": [
+    "EVENT",
+    "PERSON",
+    "PLACE"
+   ],
+   "primary": "EVENT",
+   "x": 0.078,
+   "y": 0.854,
+   "campus": "chengnan"
+  },
+  "houzishi": {
+   "entity": "houzishi",
+   "name": "猴子石缴枪",
+   "name_en": "Disarming the Warlord Troops at Houzishi",
+   "addr": "长沙市天心区 · 猴子石（一师南郊）",
+   "addr_en": "Houzishi, Tianxin District, Changsha (south of the school)",
+   "lat": 28.1458,
+   "lng": 112.9786,
+   "intro": "1917 年 11 月，毛泽东组织学生志愿军在此缴获北洋军溃兵枪支，是青年毛泽东早期军事实践的开端。",
+   "intro_en": "In November 1917 Mao led the student volunteers to disarm retreating Beiyang troops here — an early military action.",
+   "themes": [
+    "EVENT",
+    "PERSON"
+   ],
+   "primary": "EVENT",
+   "campus": "outside"
+  },
+  "dfh_tianhan": {
+   "entity": "dfh_tianhan",
+   "name": "田汉剧场",
+   "name_en": "Tian Han Theatre",
+   "addr": "东方红校区 · 田汉剧场",
+   "addr_en": "Tian Han Theatre, Dongfanghong Campus",
+   "lat": 28.2,
+   "lng": 112.88,
+   "intro": "以校友田汉命名的剧场，是校园演出、讲座与文化活动的主要场地。",
+   "intro_en": "A theatre named after alumnus Tian Han, the main venue for performances, lectures and cultural events.",
+   "themes": [
+    "PERSON",
+    "PLACE",
+    "EVENT"
+   ],
+   "primary": "PERSON",
+   "campus": "dongfanghong",
+   "x": 0.245,
+   "y": 0.588
+  },
+  "dfh_art": {
+   "entity": "dfh_art",
+   "name": "美术馆",
+   "name_en": "Art Museum",
+   "addr": "东方红校区 · 美术馆",
+   "addr_en": "Art Museum, Dongfanghong Campus",
+   "lat": 28.2,
+   "lng": 112.88,
+   "intro": "展示师生美术作品与校史主题创作，是校园美育空间。",
+   "intro_en": "Exhibitions of staff and student art and school-history-themed works — a campus space for aesthetic education.",
+   "themes": [
+    "PLACE",
+    "CONCEPT"
+   ],
+   "primary": "PLACE",
+   "campus": "dongfanghong",
+   "x": 0.378,
+   "y": 0.5
+  },
+  "dfh_library": {
+   "entity": "dfh_library",
+   "name": "图书馆",
+   "name_en": "Library",
+   "addr": "东方红校区 · 图书馆",
+   "addr_en": "Library, Dongfanghong Campus",
+   "lat": 28.2,
+   "lng": 112.88,
+   "intro": "服务教学科研的校园图书馆，藏有师范教育、湖湘文化与红色文献。",
+   "intro_en": "The campus library supporting teaching and research, with collections on teacher education, Huxiang culture and red documents.",
+   "themes": [
+    "PLACE",
+    "CONCEPT"
+   ],
+   "primary": "PLACE",
+   "campus": "dongfanghong",
+   "x": 0.647,
+   "y": 0.361
+  },
+  "dfh_runzhi": {
+   "entity": "dfh_runzhi",
+   "name": "润之广场",
+   "name_en": "Runzhi Square",
+   "addr": "东方红校区 · 润之广场",
+   "addr_en": "Runzhi Square, Dongfanghong Campus",
+   "lat": 28.2,
+   "lng": 112.88,
+   "intro": "以毛泽东字「润之」命名的广场，位于图书馆与纳湖之间，是校园核心景观与集会空间。",
+   "intro_en": "A square named after Mao's courtesy name Runzhi, between the library and Na Lake.",
+   "themes": [
+    "PERSON",
+    "PLACE",
+    "CONCEPT"
+   ],
+   "primary": "PERSON",
+   "campus": "dongfanghong",
+   "x": 0.623,
+   "y": 0.46
+  },
+  "dfh_wall": {
+   "entity": "dfh_wall",
+   "name": "名人墙",
+   "name_en": "Celebrity Wall",
+   "addr": "东方红校区 · 名人墙",
+   "addr_en": "Celebrity Wall, Dongfanghong Campus",
+   "lat": 28.2,
+   "lng": 112.88,
+   "intro": "展示一师历史名师与杰出校友，串联校史人物与校园记忆。",
+   "intro_en": "Introducing the school's historic teachers and distinguished alumni, linking school history and campus memory.",
+   "themes": [
+    "PERSON",
+    "CONCEPT",
+    "PLACE"
+   ],
+   "primary": "CONCEPT",
+   "campus": "dongfanghong",
+   "x": 0.441,
+   "y": 0.832
+  }
+ },
+ "routes": [
+  {
+   "id": "classic",
+   "title": "半天经典线",
+   "title_en": "Half-day Classic Route",
+   "duration": "约 2 小时",
+   "duration_en": "approx. 2 hours",
+   "summary": "从石坊入校，串起第八班教室、水井与阅报室，用两小时读完毛泽东在一师的日常。",
+   "summary_en": "Enter through the stone archway and link Class Eight, the well and the reading room — Mao's daily life in two hours.",
+   "pois": [
+    "school",
+    "paifang",
+    "class8",
+    "well",
+    "readingroom"
+   ],
+   "tags": [
+    "首次到访",
+    "人物足迹",
+    "经典点位"
+   ],
+   "tags_en": [
+    "First visit",
+    "Mao's footsteps",
+    "Classic stops"
+   ],
+   "tasks": [
+    "在石坊下说出「城南书院—湖南师范—第一师范」的沿革。",
+    "在第八班教室找到毛泽东的座位，记录它与讲台的距离。",
+    "在水井旁读完说明牌，用一句话解释「冷水浴」与意志训练的关系。",
+    "在阅报室挑一份旧报影印件，说说它为什么会出现在一师。"
+   ],
+   "tasks_en": [
+    "Explain the sequence \"Chengnan Academy — Hunan Normal College — First Normal School\" under the archway.",
+    "Find Mao's seat in the Class Eight classroom and note its distance from the teacher's desk.",
+    "Read the well sign and explain in one sentence how cold-water baths trained the will.",
+    "Pick a newspaper facsimile in the reading room and say why it mattered at the school."
+   ],
+   "campus": "chengnan"
+  },
+  {
+   "id": "deep",
+   "title": "一日深度线",
+   "title_en": "Full-day In-depth Route",
+   "duration": "约 4 小时",
+   "duration_en": "approx. 4 hours",
+   "summary": "一日走完主楼、城南书院、石坊、教室、寝室、大礼堂、中庭、水井与阅报室，适合班级集体研学。",
+   "summary_en": "A full day through the main building, academy wall, archway, classroom, dormitory, hall, courtyard, well and reading room — ideal for a class visit.",
+   "pois": [
+    "school",
+    "chengnan",
+    "paifang",
+    "class8",
+    "dorm8",
+    "hall",
+    "courtyard",
+    "well",
+    "readingroom"
+   ],
+   "tags": [
+    "班级研学",
+    "深度讲解",
+    "全天"
+   ],
+   "tags_en": [
+    "Class visit",
+    "In-depth",
+    "Full day"
+   ],
+   "tasks": [
+    "用一张纸画出九站动线，标出你觉得最值得停留的一站。",
+    "在寝室复原场景里找出「三不谈」展板，抄下三条内容。",
+    "在大礼堂数一数长条凳的排数，估算当年集会的人数规模。",
+    "在中庭铜像群中选一位「师」和一位「友」，用图谱查出他们与毛泽东的关系。"
+   ],
+   "tasks_en": [
+    "Sketch the nine-stop route and mark the stop you would linger at longest.",
+    "Find the 'three no-talks' board in the dormitory and copy the three rules.",
+    "Count the rows of benches in the hall and estimate its assembly capacity.",
+    "Choose one teacher and one friend from the courtyard statues and look up their relations to Mao in the graph."
+   ],
+   "campus": "chengnan"
+  },
+  {
+   "id": "spirit",
+   "title": "精神传承线",
+   "title_en": "Spirit & Legacy Route",
+   "duration": "约 3 小时",
+   "duration_en": "approx. 3 hours",
+   "summary": "从铜像广场出发，经中庭、阅报室、工人夜学旧址回到主楼，理解「师友—阅读—实践」的精神链条。",
+   "summary_en": "Start at the statue square, pass the courtyard, reading room and night-school site, and return to the main building to trace the chain \"teachers and friends — reading — practice\".",
+   "pois": [
+    "statue",
+    "courtyard",
+    "readingroom",
+    "nightclass_site",
+    "school"
+   ],
+   "tags": [
+    "精神理念",
+    "师友传承",
+    "社会实践"
+   ],
+   "tags_en": [
+    "Ideas",
+    "Teachers & friends",
+    "Social practice"
+   ],
+   "tasks": [
+    "在铜像前写下一句「我想成为什么样的人」。",
+    "在中庭石刻前解释「名师熏陶，益友砥砺」八个字。",
+    "在阅报室找一条 1919 年前后的湖南新闻，说说毛泽东为什么关注它。",
+    "在工人夜学门额前，用「教育救国」解释毛泽东办夜学的动机。"
+   ],
+   "tasks_en": [
+    "In front of the statue, write one sentence: \"What kind of person do I want to become?\"",
+    "Explain the eight characters \"Nurtured by great teachers, sharpened by good friends\" at the courtyard boulder.",
+    "Find a Hunan news item from around 1919 in the reading room and say why Mao cared about it.",
+    "Explain Mao's night school through the idea of 'saving the nation through education'."
+   ],
+   "campus": "chengnan"
+  },
+  {
+   "id": "heroic",
+   "title": "青年报国线",
+   "title_en": "Youth & Action Route",
+   "duration": "约 3 小时",
+   "duration_en": "approx. 3 hours",
+   "summary": "从主楼到铜像广场，再赴猴子石与工人夜学旧址，重走青年毛泽东「胆识—行动」的现场。",
+   "summary_en": "From the main building to the statue square, then to Houzishi and the night-school site — following the young Mao's courage and action.",
+   "pois": [
+    "school",
+    "statue",
+    "houzishi",
+    "nightclass_site"
+   ],
+   "tags": [
+    "事件现场",
+    "青年毛泽东",
+    "行动力"
+   ],
+   "tags_en": [
+    "Event sites",
+    "Young Mao",
+    "Action"
+   ],
+   "tasks": [
+    "在猴子石场景前找出「造势」的三个细节，说明它们各自的作用。",
+    "讨论：一群学生为什么能缴获正规军的枪？",
+    "在工人夜学旧址对比「武装行动」与「教育行动」，说说两者共同的底色。"
+   ],
+   "tasks_en": [
+    "Find three details of the \"show of force\" at Houzishi and explain each one.",
+    "Discuss: how could a group of students disarm regular troops?",
+    "Compare the 'armed action' and the 'educational action' at the night-school site — what do they share?"
+   ],
+   "campus": "chengnan"
+  },
+  {
+   "id": "dongfanghong",
+   "title": "东方红校区人文线",
+   "title_en": "Dongfanghong Humanities Route",
+   "duration": "约 3 小时",
+   "duration_en": "approx. 3 hours",
+   "summary": "在东方红校区从田汉剧场走到名人墙，用五站串起艺术、阅读、广场与校史人物。",
+   "summary_en": "From the Tian Han Theatre to the Celebrity Wall, five stops linking art, reading, public space and school history.",
+   "pois": [
+    "dfh_tianhan",
+    "dfh_art",
+    "dfh_library",
+    "dfh_runzhi",
+    "dfh_wall"
+   ],
+   "tags": [
+    "东方红校区",
+    "艺术与阅读",
+    "校史人物"
+   ],
+   "tags_en": [
+    "Dongfanghong",
+    "Art & reading",
+    "School history"
+   ],
+   "tasks": [
+    "在田汉剧场门口找出与田汉有关的介绍文字，记下他为一师留下的印记。",
+    "在美术馆选一件最喜欢的作品，说明它和「师范」「湖湘」有什么关系。",
+    "在图书馆找一本一师校史或湖湘文化相关的书，记下书名与索书号。",
+    "在润之广场读完地名牌，解释「润之」与毛泽东的关系。",
+    "在名人墙找一位你认识的校友，用知识图谱查出他与一师的关联。"
+   ],
+   "tasks_en": [
+    "Find the text about Tian Han at the theatre entrance and note his link with the school.",
+    "Choose a favourite work in the Art Museum and explain its link with teacher education or Huxiang culture.",
+    "Find a book on school history or Huxian culture in the library and note its title and call number.",
+    "Read the square's name plate and explain the relation between 'Runzhi' and Mao.",
+    "Find an alumnus you know on the Celebrity Wall and look up their link with the school in the graph."
+   ],
+   "campus": "dongfanghong"
+  }
+ ]
 }

@@ -9,13 +9,22 @@ echo.
 
 set "PY="
 
-if exist ".venv\Scripts\python.exe" set "PY=.venv\Scripts\python.exe"
-if not defined PY if exist "..\data\.venv\Scripts\python.exe" set "PY=..\data\.venv\Scripts\python.exe"
+if exist ".venv\Scripts\python.exe" (
+    ".venv\Scripts\python.exe" -c "import streamlit" >nul 2>nul && set "PY=.venv\Scripts\python.exe"
+)
+if not defined PY if exist "..\data\.venv\Scripts\python.exe" (
+    "..\data\.venv\Scripts\python.exe" -c "import streamlit" >nul 2>nul && set "PY=..\data\.venv\Scripts\python.exe"
+)
 if not defined PY (
     py -3 -c "import streamlit" >nul 2>nul && set "PY=py -3"
 )
 if not defined PY (
     python -c "import streamlit" >nul 2>nul && set "PY=python"
+)
+if not defined PY (
+    if exist "D:\python\python.exe" (
+        "D:\python\python.exe" -c "import streamlit" >nul 2>nul && set "PY=D:\python\python.exe"
+    )
 )
 
 if not defined PY (

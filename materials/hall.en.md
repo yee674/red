@@ -16,3 +16,12 @@
 | --- | --- | --- |
 | Hunan Provincial Department of Culture and Tourism | Hunan First Normal School: A 'Red Cradle' that Nurtured a Great Man | The assembly hall was an important venue for gatherings, speeches and academic activities |
 | Institute of Party History and Literature of the CPC Central Committee | The Site of Hunan Provincial First Normal School (Hunan) | The layout of the school's historic buildings, including the assembly hall |
+
+**Field notes (31 Oct 2026)**
+
+- The hall has a green ceiling, white walls and long wooden benches, with a red-curtained stage; it seats several hundred.
+- Exhibition boards line the walls, including one on the Hunan natives among the Party's 58 early members.
+- A historical painting depicts Mao speaking and students assembling here.
+
+
+*Image: field photo taken on the Chengnan campus (team, 31 Oct 2026)*

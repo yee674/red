@@ -24,4 +24,11 @@
 | Institute of Party History and Literature of the CPC Central Committee | The Site of Hunan Provincial First Normal School (Hunan) | A national key cultural relic protection site whose predecessor was Chengnan Academy |
 | Hunan Provincial People's Government Portal | The Site of Hunan First Normal School | An overview of the site, where Mao spent eight years studying and teaching |
 
-*Image: Wikimedia Commons — the site of Hunan First Normal School*
+**Field notes (31 Oct 2026)**
+
+- The main building is an eclectic Western-style structure with grey walls and white arches; "First Normal School" is inscribed on the gable, with the national flag above.
+- The front steps and terrace are natural spots for group photos and briefings; the ground-floor arcade shelters visitors on rainy days.
+- A campus map and signs for the "Mao Zedong and Hunan First Normal School Memorial" stand to the right of the entrance.
+
+
+*Image: field photo taken on the Chengnan campus (team, 31 Oct 2026)*

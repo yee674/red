@@ -1,10 +1,10 @@
-# Streamlit 主题（改这里的颜色就能整体换配色）
+# Streamlit 主题：深色模式的底色已从近黑调亮，保留红金质感
 [theme]
 base = "dark"
-primaryColor = "#d8452f"
-backgroundColor = "#140608"
-secondaryBackgroundColor = "#231011"
-textColor = "#f5ebe6"
+primaryColor = "#e0a35a"
+backgroundColor = "#261214"
+secondaryBackgroundColor = "#35201f"
+textColor = "#f8f1ec"
 
 [browser]
 gatherUsageStats = false

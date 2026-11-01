@@ -2,7 +2,7 @@
 """「AI 定制路线」：按兴趣主题 + 时长，用图谱关系与 C 语言的 BFS 跳数自动排一条路线。
 
 算法（三步，全部可解释）：
-1. 匹配度：点位实体类型 == 兴趣主题（人物/旧址/事件/精神理念）记 1 分；
+1. 匹配度：点位的 themes 标签包含兴趣主题（人物/旧址/事件/精神理念）记 1 分；
 2. 距离：用 C 的 find_path 算「起点 → 点位」的最短跳数，越近越优先；
 3. 排序：从起点出发做贪心最近邻（每次选跳数最小的下一个点位），得到一条走得顺的路线。
 """
@@ -31,7 +31,16 @@ def generate(index: dict, pois: list[dict], kind: str, hours: int,
     scored = []
     for poi in pois:
         node = nodes.get(poi["entity"], {})
-        match = 1.5 if (node.get("type") or "").upper() == kind else 0.0
+        themes = [str(x).upper() for x in (poi.get("themes") or [])]
+        if not themes:  # 兼容旧数据：没有 themes 时退回实体类型
+            themes = [(node.get("type") or "").upper()]
+        primary = str(poi.get("primary") or "").upper()
+        if primary == kind:
+            match = 1.5          # 主主题：优先
+        elif kind in themes:
+            match = 0.8          # 次主题：可入选但不抢占
+        else:
+            match = 0.0
         dist = _hops(lib, start_entity, poi["entity"])
         scored.append({"poi": poi, "match": match, "dist": dist,
                        "score": match * 2 + (10 - min(dist, 10))})
