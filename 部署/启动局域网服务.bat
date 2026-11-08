@@ -28,9 +28,9 @@ echo [1/2] Detecting local IP and generating the entry page ...
 %PY% "%~dp0lan_info.py"
 
 echo.
-echo [2/2] Starting server on 0.0.0.0:8501 ...
+echo [2/2] Starting server on 0.0.0.0:8503 ...
 echo       Keep this window open. Press Ctrl+C to stop.
 echo.
-%PY% -m streamlit run app.py --server.address 0.0.0.0 --server.port 8501 --server.headless true --browser.gatherUsageStats false
+%PY% -m streamlit run app.py --server.address 0.0.0.0 --server.port 8503 --server.headless true --browser.gatherUsageStats false
 
 pause

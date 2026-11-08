@@ -6,7 +6,7 @@
     用户自然语言
         │
         ├─ agent_llm.plan()        大模型：理解需求 → 输出结构化 JSON（意图 + 参数）
-        │       └─ validate()      参数白名单校验（实体必须存在、时长/主题必须合法）
+        │       └─ validate()      参数白名单校验（实体必须存在、站数/主题必须合法）
         ├─ 工具层（确定性算法）      C 邻接表 BFS / 一跳邻居 / 贪心路线
         └─ 结果解释                 以工具返回值作为唯一事实来源
 
@@ -14,7 +14,7 @@
 1. **可降级**：没有配置 API Key、网络失败、模型返回非法 JSON、参数校验不通过，
    一律返回 None，由 app.py 回退到规则引擎（别名最长匹配），页面不会白屏。
 2. **参数先校验再执行**：模型只负责「说清楚要干什么」，不负责算。
-   实体 id 必须存在于 kg.json，时长只能 2/3/4 小时，主题只能四种实体类型。
+   实体 id 必须存在于 kg.json，站数只能 2/3/4，主题只能四种实体类型。
 3. **可留痕**：每次调用都记一条日志（模型、耗时、是否重试、校验结果、工具名），
    供报告的「工具调用记录」和课程验收使用。
 
@@ -43,7 +43,7 @@ DEFAULT_TIMEOUT = 30
 
 VALID_INTENTS = ("path", "entity", "neighbors", "route", "photo", "fact", "unknown")
 VALID_KINDS = ("PERSON", "PLACE", "EVENT", "CONCEPT")
-VALID_HOURS = (2, 3, 4)
+VALID_STOPS = (2, 3, 4)
 
 # 每次会话的调用记录（app.py 会把它们显示在「调用记录」里，并可导出 JSON）
 CALL_LOG: list[dict] = []
@@ -110,7 +110,7 @@ def _messages(prompt: str, index: dict, lang: str) -> list[dict]:
 可用工具：
 1. path     —— 两点关系查询：用 C 语言邻接表 + BFS 求两实体间最短关系链
 2. entity   —— 实体名片：查某实体的身份、一跳关系、两跳可达
-3. route    —— 定制研学路线：按兴趣主题 + 时长，用贪心最近邻排一条路线
+3. route    —— 定制研学路线：按兴趣主题 + 站数，用贪心最近邻排一条路线
 4. photo    —— 只看图：用户想看某实体的照片，只回一张图，不要名片
 5. fact     —— 查单个字段：用户只问一个具体信息（入学年份、毕业年份、班级…），
               只回那个值，不要名片。字段必须来自下面的「已登记字段」
@@ -128,14 +128,16 @@ def _messages(prompt: str, index: dict, lang: str) -> list[dict]:
   "entity": "要查询的实体id",
   "field": "fact 的字段名",
   "kind": "PERSON|PLACE|EVENT|CONCEPT",
-  "hours": 2,
+  "stops": 3,
   "reason": "一句话说明你的判断"}}
 
 规则：
 - 问两个实体的关系、怎么连起来、经由谁 → intent=path，a 与 b 都必填且不能相同
 - 问一个实体是谁、有什么关系、周边 → intent=entity 或 neighbors，填 entity
-- 要安排参观路线、几小时怎么逛、按兴趣推荐点位 → intent=route，
-  填 kind（兴趣主题）、hours（2/3/4）和 start（起点实体 id）
+- 要安排参观路线、按兴趣推荐点位 → intent=route，
+  填 kind（兴趣主题）、stops（2/3/4）和 start（起点实体 id）。
+  用户说站数或分钟范围时按：2 站/3-5 分钟=2，3 站/6-8 分钟=3，4 站/7-9 分钟=4；
+  用户说几小时也换算成 2/3/4 站。
 - 只想看照片、图片、拍的样子 → intent=photo，填 entity
 - 只问某一个具体字段（哪年入学、什么时候毕业、哪个班） → intent=fact，
   填 entity 与 field（字段名用中文原名）
@@ -266,21 +268,23 @@ def validate(raw: dict | None, index: dict) -> tuple[dict | None, list[str]]:
     elif intent == "route":
         kind = str(raw.get("kind", "")).strip().upper()
         start = pick_id("start", "from", "a")
-        hours = raw.get("hours")
+        stops_raw = raw.get("stops")
+        if stops_raw is None:
+            stops_raw = raw.get("hours")   # hours 是旧字段，继续兼容
         try:
-            hours = int(hours)
+            stops = int(stops_raw)
         except (TypeError, ValueError):
-            hours = None
+            stops = None
         if kind not in VALID_KINDS:
             errors.append(f"kind 必须是 {'/'.join(VALID_KINDS)}，收到 {kind!r}")
-        if hours not in VALID_HOURS:
-            errors.append(f"hours 必须是 2/3/4，收到 {raw.get('hours')!r}")
+        if stops not in VALID_STOPS:
+            errors.append(f"stops 必须是 2/3/4，收到 {stops_raw!r}")
         if not start:
             errors.append("route 需要给出起点 start")
         elif start not in nodes:
             errors.append(f"起点 id 不在图谱中：{start}")
         if not errors:
-            params.update({"kind": kind, "hours": hours, "start": start})
+            params.update({"kind": kind, "stops": stops, "start": start})
 
     return (None, errors) if errors else (params, [])
 

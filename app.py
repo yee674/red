@@ -93,14 +93,16 @@ TEXT = {
         "correct": "正确答案",
         "no_image": "（暂无图片）",
         "custom_route": "AI 定制路线",
-        "custom_hint": "选兴趣主题和时长，系统按实体类型匹配 + C 语言 BFS 跳数就近排序，为你生成一条路线。",
+        "custom_hint": "选兴趣主题和站数，系统按实体类型匹配 + C 语言 BFS 跳数就近排序，为你生成一条 3-9 分钟的路线。",
         "interest": "兴趣主题",
         "interest_person": "人物",
         "interest_place": "旧址",
         "interest_event": "事件",
         "interest_concept": "精神理念",
-        "hours": "计划时长",
-        "hours_unit": "小时",
+        "plan_time": "计划时长",
+        "stops_unit": "站",
+        "duration_range": "{lo}-{hi} 分钟",
+        "custom_time_note": "2 站约 3-5 分钟，3 站约 6-8 分钟，4 站约 7-9 分钟；每多一站增加 1-3 分钟。",
         "start_from": "从哪开始",
         "generate": "生成我的路线",
         "custom_match": "主题匹配",
@@ -130,10 +132,6 @@ TEXT = {
         "two_hop": "间接关联（两跳路径）",
         "sources": "资料来源",
         "raw_c": "查看 C 层原始返回",
-        "path_tool": "两点关系查询（C 语言 BFS 最短路径）",
-        "path_from": "从",
-        "path_to": "到",
-        "path_btn": "查找关联路径",
         "path_hops": "{n} 跳",
         "path_same": "两个实体相同。",
         "path_none": "这两个实体之间没有连通路径。",
@@ -159,7 +157,6 @@ TEXT = {
         "type_unknown": "未分类",
         "reset_chat": "清空对话",
         "entity_removed": "这条消息关联的实体已从 kg.json 中删除。",
-        "footer": "数据存放在 kg.json、materials/、assets/ 中，保存后页面会自动刷新。",
     },
     "en": {
         "app_title": "RedTrace AI",
@@ -195,14 +192,16 @@ TEXT = {
         "correct": "Correct answer",
         "no_image": "(no image yet)",
         "custom_route": "AI-planned route",
-        "custom_hint": "Pick an interest and a duration; the route is planned by matching entity types and ordering stops by C-BFS hop distance.",
+        "custom_hint": "Pick an interest and a stop count; the route is planned by matching entity types and ordering stops by C-BFS hop distance — a 3-9 minute route.",
         "interest": "Interest",
         "interest_person": "People",
         "interest_place": "Sites",
         "interest_event": "Events",
         "interest_concept": "Ideas",
-        "hours": "Duration",
-        "hours_unit": "hours",
+        "plan_time": "Duration",
+        "stops_unit": "stops",
+        "duration_range": "{lo}-{hi} min",
+        "custom_time_note": "2 stops ≈ 3-5 min, 3 stops ≈ 6-8 min, 4 stops ≈ 7-9 min; each extra stop adds 1-3 min.",
         "start_from": "Start from",
         "generate": "Plan my route",
         "custom_match": "theme match",
@@ -232,10 +231,6 @@ TEXT = {
         "two_hop": "Indirect relations (two-hop paths)",
         "sources": "Sources",
         "raw_c": "Raw output from the C layer",
-        "path_tool": "Path between two entities (C BFS shortest path)",
-        "path_from": "From",
-        "path_to": "To",
-        "path_btn": "Find the path",
         "path_hops": "{n} hop(s)",
         "path_same": "The two entities are the same.",
         "path_none": "There is no connecting path between these two entities.",
@@ -262,7 +257,6 @@ TEXT = {
         "type_unknown": "Uncategorised",
         "reset_chat": "Clear chat",
         "entity_removed": "The entity behind this message was removed from kg.json.",
-        "footer": "All data lives in kg.json, materials/ and assets/ — save a file and the page refreshes itself.",
     },
 }
 
@@ -1623,12 +1617,9 @@ AGENT_TEXT = {
         "tool_photo": "实体配图直出",
         "tool_fact": "字段直查",
         "tool_rule": "别名最长匹配",
-        "log": "调用记录",
-        "log_hint": "每次问答的模型、参数校验、实际调用的工具与耗时，可直接导出作为验收证据。",
-        "log_empty": "还没有调用记录。",
-        "log_download": "下载调用记录 JSON",
         "route_title": "定制路线",
-        "route_hours": "{h} 小时",
+        "route_stops": "{n} 站",
+        "route_minutes": "约 {lo}-{hi} 分钟",
         "route_hops": "距上一点 {n} 跳",
         "route_match": "主题匹配",
     },
@@ -1643,12 +1634,9 @@ AGENT_TEXT = {
         "tool_photo": "entity photo only",
         "tool_fact": "field lookup",
         "tool_rule": "longest-alias match",
-        "log": "Tool-call log",
-        "log_hint": "Model, param validation, tool used and latency per turn; exportable as evidence.",
-        "log_empty": "No calls recorded yet.",
-        "log_download": "Download call log (JSON)",
         "route_title": "Custom route",
-        "route_hours": "{h} h",
+        "route_stops": "{n} stop(s)",
+        "route_minutes": "~{lo}-{hi} min",
         "route_hops": "{n} hop(s) from previous stop",
         "route_match": "theme match",
     },
@@ -1656,17 +1644,17 @@ AGENT_TEXT = {
 
 
 def _tool_route(params: dict, index: dict, lang: str) -> dict | None:
-    """工具三：按兴趣主题 + 时长生成路线（跳数来自 C 的 BFS，排序用贪心最近邻）。"""
+    """工具三：按兴趣主题 + 站数生成路线（跳数来自 C 的 BFS，排序用贪心最近邻）。"""
     pois = _all_pois(lang, index)
     if not pois:
         return None
-    result = custom_route.generate(index, pois, params["kind"], params["hours"], params["start"])
+    result = custom_route.generate(index, pois, params["kind"], params["stops"], params["start"])
     items = [{"entity": it["poi"]["entity"], "dist": it["dist"], "match": it["match"]}
              for it in result["items"]]
     if not items:
         return None
-    return {"role": "assistant", "kind": "route", "hours": params["hours"],
-            "kind_type": params["kind"], "items": items}
+    return {"role": "assistant", "kind": "route", "stops": result["stops"],
+            "minutes": result["minutes"], "kind_type": params["kind"], "items": items}
 
 
 def _llm_dispatch(params: dict, index: dict, lang: str) -> tuple[dict | None, str]:
@@ -1722,9 +1710,11 @@ def render_agent_tag(meta: dict, lang: str) -> None:
 
 def render_route_card(msg: dict, index: dict, lang: str) -> None:
     txt = AGENT_TEXT[lang]
+    stops = msg.get("stops") or len(msg["items"])
+    lo, hi = msg.get("minutes") or custom_route.time_range(stops)
     st.markdown(
-        f"**✨ {txt['route_title']} · {txt['route_hours'].format(h=msg['hours'])} · "
-        f"{len(msg['items'])} {('点位' if lang == 'zh' else 'stops')}**"
+        f"**✨ {txt['route_title']} · {txt['route_stops'].format(n=stops)} · "
+        f"{txt['route_minutes'].format(lo=lo, hi=hi)}**"
     )
     for n, it in enumerate(msg["items"], 1):
         node = index["nodes"].get(it["entity"], {})
@@ -1738,7 +1728,7 @@ def answer(prompt: str, index: dict, lang: str) -> dict:
 
     三条铁律：
       1. 模型只解析、不算数，结果以工具返回值为准；
-      2. 参数必须过白名单（实体要在图谱里、时长只能 2/3/4）；
+      2. 参数必须过白名单（实体要在图谱里、站数只能 2/3/4）；
       3. 任何一步失败都回退规则引擎，聊天不会因为模型坏了而不可用。
     """
     meta: dict = {"engine": "rule", "model": "", "elapsed_ms": 0.0, "attempts": 0,
@@ -1765,32 +1755,6 @@ def answer(prompt: str, index: dict, lang: str) -> dict:
     msg["agent"] = fallback
     _log_call(prompt, fallback, "rule")
     return msg
-
-
-def render_agent_log(lang: str) -> None:
-    """调用记录面板：验收时直接展示「真实工具调用」的证据。"""
-    txt = AGENT_TEXT[lang]
-    entries = st.session_state.get("agent_log", [])
-    with st.expander(f"🧾 {txt['log']}（{len(entries)}）", expanded=False):
-        st.caption(txt["log_hint"])
-        if not entries:
-            st.caption(txt["log_empty"])
-            return
-        st.dataframe(
-            [{"时间": e["time"], "引擎": e["engine"], "模型": e["model"],
-              "意图": e["intent"] or "-", "工具": e["tool"],
-              "参数校验": "通过" if e["validated"] else "回退",
-              "耗时(ms)": e["elapsed_ms"], "输入": e["prompt"][:28]}
-             for e in entries[-20:]],
-            width="stretch", hide_index=True,
-        )
-        st.download_button(
-            txt["log_download"],
-            data=json.dumps(entries, ensure_ascii=False, indent=2),
-            file_name="agent_call_log.json",
-            mime="application/json",
-            key="agent-log-download",
-        )
 
 
 def sidebar(index: dict, lang: str) -> bool:
@@ -1984,33 +1948,6 @@ def render_chat_page(index: dict, lang: str, t: dict) -> None:
                 if st.button(name, key=f"ex-{name}", width="stretch"):
                     st.session_state["_pending"] = name
                     st.rerun()
-
-    st.caption(t["footer"])
-
-    # ---- 两点路径工具（C 语言 BFS） ----
-    with st.expander(f"🧭 {t['path_tool']}", expanded=False):
-        ids = list(index["nodes"])
-        c1, c2, c3 = st.columns([3, 3, 2])
-        a_id = c1.selectbox(
-            t["path_from"], ids, key="path_from",
-            format_func=lambda i: display_name(index["nodes"][i], lang),
-        )
-        b_id = c2.selectbox(
-            t["path_to"], ids, key="path_to", index=min(1, len(ids) - 1),
-            format_func=lambda i: display_name(index["nodes"][i], lang),
-        )
-        if c3.button(t["path_btn"], width="stretch"):
-            st.session_state.messages.append({
-                "role": "user",
-                "content": f"{display_name(index['nodes'][a_id], lang)} ↔ "
-                           f"{display_name(index['nodes'][b_id], lang)}",
-            })
-            st.session_state.messages.append(make_path_message(a_id, b_id, index))
-            st.rerun()
-        st.caption(t["path_caption"])
-
-    # ---- 智能体调用记录（模型 / 参数校验 / 工具 / 耗时）----
-    render_agent_log(lang)
 
     prompt = st.chat_input(t["placeholder"])
     if not prompt:
@@ -2399,6 +2336,10 @@ def _render_custom_route(index: dict, lang: str, t: dict) -> None:
              ("CONCEPT", "💡 " + t["interest_concept"])]
     kind_labels = dict(kinds)
 
+    def _stops_label(n: int) -> str:
+        lo, hi = custom_route.time_range(n)
+        return f'{n} {t["stops_unit"]} · {t["duration_range"].format(lo=lo, hi=hi)}'
+
     c1, c2, c3 = st.columns(3)
     with c1:
         st.markdown(
@@ -2411,10 +2352,10 @@ def _render_custom_route(index: dict, lang: str, t: dict) -> None:
     with c2:
         st.markdown(
             f'<div class="step-card"><div class="step-no">STEP 02</div>'
-            f'<h4>{t["hours"]}</h4><p>2 小时 3 站，3 小时 4 站，4 小时 6 站。</p></div>',
+            f'<h4>{t["plan_time"]}</h4><p>{t["custom_time_note"]}</p></div>',
             unsafe_allow_html=True)
-        hours = st.radio(t["hours"], [2, 3, 4], index=1, horizontal=True,
-                         format_func=lambda h: f"{h} {t['hours_unit']}", key="cr_hours",
+        stops = st.radio(t["plan_time"], [2, 3, 4], index=1, horizontal=True,
+                         format_func=_stops_label, key="cr_stops",
                          label_visibility="collapsed")
     with c3:
         st.markdown(
@@ -2428,37 +2369,17 @@ def _render_custom_route(index: dict, lang: str, t: dict) -> None:
         )
 
     if st.button(f"✨ {t['generate']}", key="cr_generate", width="stretch"):
-        st.session_state["cr_result"] = custom_route.generate(index, pois, kind, hours, start)
+        st.session_state["cr_result"] = custom_route.generate(index, pois, kind, stops, start)
         st.session_state["cr_result"]["campus"] = campus
-        st.session_state["cr_params"] = (campus, kind, hours, start)
+        st.session_state["cr_params"] = (campus, kind, stops, start)
 
     result = st.session_state.get("cr_result")
     if not result:
         st.markdown(
-            '<div class="plan-hint">选好主题、时长和起点后，点上面的按钮生成路线；'
+            '<div class="plan-hint">选好主题、站数和起点后，点上面的按钮生成路线；'
             '系统会给出地图、时间轴、逐站讲解、任务卡和 docx 小结。</div>',
             unsafe_allow_html=True,
         )
-        st.markdown("#### 算法怎么排")
-        a1, a2, a3 = st.columns(3)
-        with a1:
-            st.markdown(
-                '<div class="step-card"><div class="step-no">MATCH</div><h4>① 主题匹配</h4>'
-                '<p>点位的 themes 标签与兴趣主题一致时加 1.5 分；'
-                '例如「人物」主题优先选与毛泽东关系密集的点位。</p></div>',
-                unsafe_allow_html=True)
-        with a2:
-            st.markdown(
-                '<div class="step-card"><div class="step-no">DISTANCE</div><h4>② BFS 距离</h4>'
-                '<p>用 C 内核的 find_path 算「上一站 → 候选点」的最短跳数，'
-                '跳数越少分越高，避免在校园里来回折返。</p></div>',
-                unsafe_allow_html=True)
-        with a3:
-            st.markdown(
-                '<div class="step-card"><div class="step-no">ORDER</div><h4>③ 贪心排序</h4>'
-                '<p>从起点开始每次挑「主题更契合、跳数更小」的下一点，'
-                '2 / 3 / 4 小时分别截取 3 / 4 / 6 站。</p></div>',
-                unsafe_allow_html=True)
         st.markdown(f"#### 可用的 {len(pois)} 个点位")
         icons = {"PLACE": "🏛️", "EVENT": "📌", "PERSON": "👤", "CONCEPT": "💡"}
         chips = "".join(
@@ -2466,29 +2387,32 @@ def _render_custom_route(index: dict, lang: str, t: dict) -> None:
             f'{p["name"]}</span>' for p in pois)
         st.markdown(f'<div class="poi-chips">{chips}</div>', unsafe_allow_html=True)
         return
-    if st.session_state.get("cr_params") != (campus, kind, hours, start):
+    if st.session_state.get("cr_params") != (campus, kind, stops, start):
         st.warning("参数已修改，请重新生成路线。" if lang == "zh"
                    else "Parameters changed — generate again.")
         return
 
     items = result["items"]
+    stops_n = result.get("stops") or len(items)
+    minutes = result.get("minutes") or custom_route.time_range(stops_n)
+    duration_text = t["duration_range"].format(lo=minutes[0], hi=minutes[1])
     kind_name = kind_labels.get(result["kind"], result["kind"])
     campus_name = campus_labels.get(campus, campus)
     if lang == "zh":
-        summary = (f"按「{kind_name}」主题排的 {result['hours']} 小时路线："
+        summary = (f"按「{kind_name}」主题排的 {stops_n} 站路线（约 {duration_text}）："
                    f"主题匹配的点位优先，再按知识图谱跳数就近排序，减少折返。")
     else:
-        summary = (f"A {result['hours']}-hour route for the “{kind_name}” theme: "
+        summary = (f"A {stops_n}-stop “{kind_name}” route (about {duration_text}): "
                    f"theme-matched stops first, then ordered by graph hop distance to reduce backtracking.")
     route = {
         "id": "custom", "title": t["custom_route"], "summary": summary,
-        "duration": f"{result['hours']} {t['hours_unit']}",
+        "duration": duration_text,
         "tags": [campus_name, kind_name],
         "tasks": custom_route.make_tasks(items, lang),
         "campus": result.get("campus", campus),
     }
     _route_detail(route, [it["poi"] for it in items], index, lang, t,
-                  f"custom-{result['hours']}-{result['kind']}", items)
+                  f"custom-{stops_n}-{result['kind']}", items)
 
 
 def render_study_page(index: dict, lang: str, t: dict) -> None:
@@ -2498,12 +2422,12 @@ def render_study_page(index: dict, lang: str, t: dict) -> None:
     n_pois = len(_all_pois(lang, index))
     if lang == "zh":
         lead = (f"把 {n_nodes} 个实体、{n_edges} 条关系变成一条走得通的路线："
-                f"先选主题，再按时长裁站，最后导出研学小结。")
-        meta = [f"{n_routes} 条主题路线", f"{n_pois} 个点位", "2 / 3 / 4 小时", "docx 导出"]
+                f"先选主题，再定站数，最后导出研学小结。")
+        meta = [f"{n_routes} 条主题路线", f"{n_pois} 个点位", "2 / 3 / 4 站", "docx 导出"]
     else:
         lead = (f"Turn {n_nodes} entities and {n_edges} relations into a walkable route: "
-                f"pick a theme, fit the duration, export a report.")
-        meta = [f"{n_routes} route themes", f"{n_pois} stops", "2 / 3 / 4 hours", "docx export"]
+                f"pick a theme, choose the number of stops, export a report.")
+        meta = [f"{n_routes} route themes", f"{n_pois} stops", "2 / 3 / 4 stops", "docx export"]
     st.markdown(
         f'<div class="study-hero"><div class="eyebrow">STUDY ROUTE STUDIO</div>'
         f'<h2>🎒 {t["page_study"]}</h2><p>{lead}</p>'

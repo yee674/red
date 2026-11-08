@@ -14,8 +14,8 @@ SEEN = set()
 def reply_for(prompt: str) -> dict:
     """按提示词内容返回不同规划，模拟真实模型的输出。"""
     if "路线" in prompt:
-        return {"intent": "route", "kind": "PERSON", "hours": 3, "start": "mao",
-                "reason": "按人物主题排 3 小时"}
+        return {"intent": "route", "kind": "PERSON", "stops": 3, "start": "mao",
+                "reason": "按人物主题排 3 站"}
     if "修一下" in prompt:
         # 第一次故意给一个不存在的实体，触发校验失败 + 重试修复
         if prompt not in SEEN:
@@ -70,7 +70,7 @@ def main():
     cases = [
         ("杨昌济和何叔衡是怎么连起来的", "path"),
         ("何叔衡是谁，介绍一下", "entity"),
-        ("按人物主题排一个3小时的路线，从毛泽东出发", "route"),
+        ("按人物主题排一个3站的路线，从毛泽东出发", "route"),
         ("修一下 杨昌济 到 何叔衡", "path-repair"),
     ]
     for prompt, expect in cases:
@@ -86,7 +86,8 @@ def main():
         if msg.get("kind") == "path":
             print("   hops:", msg.get("hops"), "| steps:", len(msg.get("steps", [])))
         if msg.get("kind") == "route":
-            print("   route:", [(i["entity"], i["dist"]) for i in msg["items"]])
+            print("   route:", [(i["entity"], i["dist"]) for i in msg["items"]],
+                  "| stops:", msg.get("stops"), "| minutes:", msg.get("minutes"))
         if at.exception:
             print("   EXCEPTION:", [str(e.value)[:200] for e in at.exception])
 

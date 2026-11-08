@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""「AI 定制路线」：按兴趣主题 + 时长，用图谱关系与 C 语言的 BFS 跳数自动排一条路线。
+"""「AI 定制路线」：按兴趣主题 + 站数，用图谱关系与 C 语言的 BFS 跳数自动排一条路线。
 
 算法（三步，全部可解释）：
 1. 匹配度：点位的 themes 标签包含兴趣主题（人物/旧址/事件/精神理念）记 1 分；
@@ -8,7 +8,19 @@
 """
 from __future__ import annotations
 
-HOURS_TO_COUNT = {2: 3, 3: 4, 4: 6}
+# 2 / 3 / 4 站的预计路线时长（分钟）；每多一站，时间上下限各增加 1-3 分钟。
+STOP_MINUTES = {2: (3, 5), 3: (6, 8), 4: (7, 9)}
+DEFAULT_STOPS = 3
+VALID_STOPS = (2, 3, 4)
+
+
+def time_range(stops: int) -> tuple[int, int]:
+    """返回该站数对应的预计时长区间（分钟）。"""
+    try:
+        n = int(stops)
+    except (TypeError, ValueError):
+        n = DEFAULT_STOPS
+    return STOP_MINUTES.get(n, STOP_MINUTES[DEFAULT_STOPS])
 
 
 def _hops(lib, a: str, b: str) -> int:
@@ -21,12 +33,18 @@ def _hops(lib, a: str, b: str) -> int:
     return n if n >= 0 else 99
 
 
-def generate(index: dict, pois: list[dict], kind: str, hours: int,
+def generate(index: dict, pois: list[dict], kind: str, stops: int,
              start_entity: str) -> dict:
-    """返回 {poi 列表(已排序), 每个点位的匹配度与跳数, 说明文字数据}"""
+    """返回 {poi 列表(已排序), 每个点位的匹配度与跳数, 站数与预计时长}"""
     lib = index.get("lib")
     nodes = index["nodes"]
-    want = HOURS_TO_COUNT.get(hours, 4)
+    try:
+        stops = int(stops)
+    except (TypeError, ValueError):
+        stops = DEFAULT_STOPS
+    if stops not in VALID_STOPS:
+        stops = DEFAULT_STOPS
+    want = stops
 
     scored = []
     for poi in pois:
@@ -67,7 +85,9 @@ def generate(index: dict, pois: list[dict], kind: str, hours: int,
                         "score": nxt["score"]})
         cur = nxt["poi"]["entity"]
 
-    return {"items": ordered, "hours": hours, "kind": kind}
+    actual = len(ordered)
+    return {"items": ordered, "stops": actual, "minutes": time_range(actual),
+            "kind": kind}
 
 
 def make_tasks(items: list[dict], lang: str) -> list[str]:

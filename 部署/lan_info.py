@@ -15,7 +15,42 @@ import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
-PORT = 8501
+DEFAULT_PORT = 8503
+
+
+def resolve_port() -> int:
+    """端口优先级：--port/-p 参数 > 环境变量 RT_PORT > DEFAULT_PORT。"""
+    argv = sys.argv[1:]
+    for i, arg in enumerate(argv):
+        if arg in ("--port", "-p") and i + 1 < len(argv):
+            try:
+                return int(argv[i + 1])
+            except ValueError:
+                pass
+        elif arg.startswith("--port="):
+            try:
+                return int(arg.split("=", 1)[1])
+            except ValueError:
+                pass
+    try:
+        return int(os.environ.get("RT_PORT") or DEFAULT_PORT)
+    except ValueError:
+        return DEFAULT_PORT
+
+
+PORT = resolve_port()
+
+
+def port_in_use(port: int) -> bool:
+    """本机该端口是否已有服务在监听（用于识别"连到了别的实例"）。"""
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    s.settimeout(0.4)
+    try:
+        return s.connect_ex(("127.0.0.1", port)) == 0
+    except OSError:
+        return False
+    finally:
+        s.close()
 
 
 def primary_ip() -> str | None:
@@ -72,7 +107,10 @@ def make_qr(text: str) -> bytes | None:
         buf = io.BytesIO()
         img.save(buf)
         return buf.getvalue()
-    except Exception:
+    except Exception as exc:  # 缺库/缺 Pillow 都走这里，只降级不中断
+        print(f"  [!] 二维码未生成（{exc.__class__.__name__}: {exc}）")
+        print("      解决：用装了 qrcode 的 Python 跑本脚本，或执行")
+        print(f"          {sys.executable} -m pip install \"qrcode[pil]\"")
         return None
 
 
@@ -95,6 +133,9 @@ def main() -> None:
     print("  这台电脑保持“服务”窗口不要关，关掉服务就访问不了")
     print("  首次启动如果弹出防火墙提示，请点“允许访问”")
     print("=" * 56)
+    if port_in_use(PORT):
+        print(f"  [!] 端口 {PORT} 上已有服务在监听。如果页面显示的数据不是你最新")
+        print("      改过的版本，说明连到了旧实例：先结束它，或换个 --port 再启动。")
 
     qr = make_qr(main_url)
     if qr:
